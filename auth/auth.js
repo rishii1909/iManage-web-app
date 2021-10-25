@@ -1,6 +1,8 @@
 const passport = require('passport');
 const localStrategy = require('passport-local').Strategy;
 const UserModel = require('../models/User');
+const TeamModel = require('../models/Team');
+const TeamSecretModel = require('../models/TeamSecret');
 const JWTstrategy = require('passport-jwt').Strategy;
 const ExtractJWT = require('passport-jwt').ExtractJwt;
 
@@ -9,13 +11,67 @@ passport.use(
     new localStrategy({
         usernameField : 'email',
         passwordField : 'password',
+        passReqToCallback : true
     },
-    async (email, password, done) => {
+    async (req, email, password, done) => {
         try {
-            const user = await UserModel.create({email, password});
-            console.log("user info returned  :", user);
-            return done(null, user);
+            if(!req.body.team_secret){
+                var user = await UserModel.create(req.body);
+                let teamData = {};
+                teamData.name = `${user.name.trim().split(" ")[0]}'s team`;
+                teamData.root = user._id;
+                teamData.level = 0;
+                teamData.capacity = 1;
+                teamData.users = {
+                    [user._id] : true
+                }
+                const team = await TeamModel.create(teamData);
+                await UserModel.updateOne({ 
+                    _id: user._id
+                }, {
+                    team_id: team._id
+                },
+                (err) => {
+                   if(err){
+                       console.log(`Error: ` + err)
+                   }
+                });
+
+                return done(null, {
+                    user : user,
+                    team : team
+                });
+            }else{
+                // Using Team secret
+
+                TeamSecretModel.findOne({
+                    secret: req.body.team_secret,
+                }).then(async (secret) => {
+                    if(!secret){
+                        console.log(secret);
+                        return done("Your team secret is invalid.");
+                    }
+                    var user = await UserModel.create({...req.body, ...{team_id : secret.team_id}});
+                    await TeamModel.findOneAndUpdate({
+                        _id: secret.team_id,
+                    }, {
+                        [`users.${user._id}`]: true,
+                    }, (err, team) => {
+                        if (err) {
+                            console.log(`Error: ` + err)
+                        } else {
+                            return done(null, {
+                                user : user,
+                                team : team
+                            });
+                        }
+                    });
+                    
+                });
+            }
+            
         } catch (err) {
+            console.log(err);
             done(err);
         }
     }
@@ -34,21 +90,16 @@ passport.use(
                 const User = await UserModel.findOne({email})
                 const valid_password = await User.check_password(password);
                 if( !User || !valid_password ){
-                    console.log('here');
                     return done(
                         null,
                         false,
-                        {
-                            message : "Incorrect username or password."
-                        }
+                        "Incorrect username or password."
                     );
                 }
                 return done(
                     null,
                     User,
-                    {
-                        message : "Logged in successfully!"
-                    }
+                    "Logged in successfully!"
                 )
 
             } catch (err) {

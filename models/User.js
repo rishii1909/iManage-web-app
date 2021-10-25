@@ -5,19 +5,29 @@ const Schema = mongoose.Schema;
 
 const UserSchema = new Schema({
     email : {
-        type : String,
+        type : String,  
         required : true,
         // unique : true
     },
-    // name : {
-    //     type : String,
-    //     required : true,
-    // },
+    name : {
+        type : String,
+        required : true,
+    },
     password : {
         type : String,
         required : true,
-    }
-})
+    },
+    team_id : {
+        type : Schema.Types.ObjectId,
+        ref : 'Team',
+    },
+    notification_templates : {
+        type : Map,
+        default : {},
+    },
+
+
+}, { versionKey: false })
 
 UserSchema.pre(
     'save',

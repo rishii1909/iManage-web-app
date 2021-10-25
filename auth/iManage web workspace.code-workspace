@@ -5,7 +5,15 @@
 		},
 		{
 			"path": "C:\\Users\\hrush\\Desktop\\DOCKYARD\\ServerManagementProject"
+		},
+		{
+			"path": "..\\..\\iManage-web-frontend"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"search.useIgnoreFiles": false,
+		"search.exclude": {
+			"**/node_modules": false
+		}
+	}
 }
