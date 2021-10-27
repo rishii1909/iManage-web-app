@@ -308,7 +308,7 @@ router.post('/enumerate/user', (req, res, next) => {
         return res.json(handle_error("Invalid parameter [id]s."))
     }
 
-    AgentModel.findById({ 
+    TeamModel.findById({ 
         _id : team_id
     }, async (err, team) => {
         // console.log(team.user_devices);
