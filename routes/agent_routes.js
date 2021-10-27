@@ -32,6 +32,7 @@ router.post('/create/team', async (req, res, next) => {
             const team = user.team_id;
             const caps = get_capacity(team.level);
             const isRoot = is_root(team.root, user_id);
+            console.log(team);
             if(
                 !(
                     isRoot || 
@@ -137,22 +138,22 @@ router.post('/create/user', async (req, res, next) => {
                 ...(data.privateKey) && { privateKey : data.privateKey },
                 ...(data.passphrase) && { passphrase : data.passphrase },
             }
-            if(!data.private){
-                try {
-                    let connection = await ssh.connect(creds);
-                    if(!connection.isConnected){
-                        return res.json(handle_error({
-                            error : null,
-                            message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
-                        }));
-                    }
-                } catch (err) {
-                    return res.json(handle_error({
-                        error : err,
-                        message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
-                    }));
-                }
-            }
+            // if(!data.private){
+            //     try {
+            //         let connection = await ssh.connect(creds);
+            //         if(!connection.isConnected){
+            //             return res.json(handle_error({
+            //                 error : null,
+            //                 message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
+            //             }));
+            //         }
+            //     } catch (err) {
+            //         return res.json(handle_error({
+            //             error : err,
+            //             message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
+            //         }));
+            //     }
+            // }
             // Step 3 : Create the agent
             data.creds = creds;
             try {
@@ -162,15 +163,13 @@ router.post('/create/user', async (req, res, next) => {
                     $inc : { agent_occupancy : 1 }
                 };
                 if(!team.user_agents.has(user_id) || !team.user_agents.get(user_id)){
-                    updateInfo = { 
-                        [`user_agents.${user_id}`] : {
-                            [`${agent._id}`] : true
-                        }
+                    updateInfo[`user_agents.${user_id}`] = {
+                        [`${agent._id}`] : true
                     }
+                    
                 }else{
-                    updateInfo = {
-                        [`user_agents.${user_id}.${agent._id}`]: true
-                    }
+                    updateInfo[`user_agents.${user_id}.${agent._id}`] = true;
+                    
                 }
                 TeamModel.updateOne({
                     _id: team._id,
@@ -187,6 +186,7 @@ router.post('/create/user', async (req, res, next) => {
                     agent : agent
                 }))
             } catch (err) {
+                console.log(err);
                 return res.json(handle_error(err.message));
             } 
         });

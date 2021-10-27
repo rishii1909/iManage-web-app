@@ -20,7 +20,17 @@ const AgentSchema = new Schema({
     additional_info : {
         type : String,
         required : false,
-    }
+    },
+    team_id : {
+        type : Schema.Types.ObjectId,
+        ref : 'Team',
+        required : true
+    },
+    type : {
+        type : Number,
+        required : true,
+        default : 1
+    },
     
 }, { versionKey: false })
 

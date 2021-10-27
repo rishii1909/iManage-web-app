@@ -45,7 +45,7 @@ app.use('/secure', passport.authenticate('jwt', { session : false }) ,secure_rou
 app.use('/teams', passport.authenticate('jwt', { session : false }) ,team_routes);
 app.use('/team_secrets', passport.authenticate('jwt', { session : false }) ,team_secret_routes);
 app.use('/devices', passport.authenticate('jwt', { session : false }) ,device_routes);
-app.use('/devices', passport.authenticate('jwt', { session : false }) ,agent_routes);
+app.use('/agents', passport.authenticate('jwt', { session : false }) ,agent_routes);
 app.use('/users', passport.authenticate('jwt', { session : false }) ,user_routes);
 
 app.use((err, req, res, next) => {

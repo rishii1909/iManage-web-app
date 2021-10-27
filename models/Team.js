@@ -35,6 +35,10 @@ const TeamSchema = new Schema({
         type : Map,
         default : {},
     },
+    user_agents : {
+        type : Map,
+        default : {},
+    },
     device_occupancy : {
         type : Number,
         default : 0,
@@ -72,6 +76,10 @@ const TeamSchema = new Schema({
         default : {},
     },
     device_admins : {
+        type : Map,
+        default : {},
+    },
+    agent_admins : {
         type : Map,
         default : {},
     },
