@@ -315,9 +315,14 @@ router.post('/enumerate/user', (req, res, next) => {
         if(!team || err){
             res.json(handle_error("Your agent could not be identified."));
         }
-    
-        return res.json(handle_success(team.user_agents.get(user_id)));
-
+        let agents_array = Object.keys(team.user_agents.get(user_id));
+        return res.json(handle_success(
+            await AgentModel.find({
+                _id : {
+                    $in : agents_array
+                }
+            })
+        ));
     });
 })
 
