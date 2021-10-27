@@ -298,6 +298,27 @@ router.post('/enumerate/team', (req, res, next) => {
 
     });
 })
+router.post('/enumerate/user', (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    // console.log("user_id : ", user_id,"team_id : ", team_id);
+    if( found_invalid_ids([user_id, team_id]) ){
+        return res.json(handle_error("Invalid parameter [id]s."))
+    }
+
+    TeamModel.findById({ 
+        _id : team_id
+    }, async (err, team) => {
+        // console.log(team.user_devices);
+        if(!team || err){
+            res.json(handle_error("Your team could not be identified."));
+        }
+    
+        return res.json(handle_success(team.user_devices.get(user_id)));
+
+    });
+})
 
 router.post('/enumerate/device', (req, res, next) => {
     const data = req.body;
