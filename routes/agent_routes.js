@@ -316,7 +316,7 @@ router.post('/enumerate/user', (req, res, next) => {
             res.json(handle_error("Your agent could not be identified."));
         }
     
-        return res.json(handle_success(team.user_devices.get(user_id)));
+        return res.json(handle_success(team.user_agents.get(user_id)));
 
     });
 })
