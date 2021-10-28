@@ -9,6 +9,7 @@ const { isValidObjectId } = require('mongoose');
 const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
+const MonitorModel = require('../models/Monitor');
 const router = express.Router();
 
 const ssh = new NodeSSH()
@@ -411,16 +412,31 @@ router.post('/enumerate/device', (req, res, next) => {
             // Enumerate the device
             var device = {};
             if(data.show_creds){
-                device = await DeviceModel.findById({ 
-                    _id : device_id
-                });
-                return res.json(handle_success(device));
+                device = await DeviceModel.findById(
+                    { 
+                        _id : device_id
+                    }, 
+                );
+            }else{
+                device = await DeviceModel.findById(
+                    { 
+                        _id : device_id
+                    }, 
+                ).select('-creds -username -team');
+
             }
-            return res.json( 
-                await DeviceModel.findById({ 
-                _id : device_id
-                }).select('-creds -username -team')
-            )
+            let enumerate = {}; 
+            if(data.show_monitors){
+                let monitors_array = Array.from( device.monitors.keys() );
+                enumerate = await MonitorModel.find({
+                    _id : {
+                        $in : monitors_array
+                    }
+                });
+                console.log(enumerate);
+                // device.monitors = device_monitors;
+            }
+            return res.json(handle_success(enumerate ? {...device._doc, ...{monitors : enumerate}} : device));
         }else{
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }
