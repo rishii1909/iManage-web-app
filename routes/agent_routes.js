@@ -37,7 +37,7 @@ router.post('/create/team', async (req, res, next) => {
                 !(
                     isRoot || 
                     (team.agent_admins.has(user_id) && 
-                    team.agent_admins[user_id] === true)
+                    team.agent_admins.get(user_id) === true)
                 )
             ){
                 console.log(isRoot, user_id, team.root)
@@ -230,7 +230,7 @@ router.post('/update/team', (req, res, next) => {
                     // if current user is a agent admin.
                     team.agent_admins.has(user_id) || 
                     // if selected agent has been assigned to the current user.
-                    (team.assigned_agents.has(user_id) && team.assigned_agents[user_id][agent_id] === true)
+                    (team.assigned_agents.has(user_id) && team.assigned_agents.get(user_id)[agent_id] === true)
                 )
             )
         ){
@@ -335,7 +335,7 @@ router.post('/enumerate/team', (req, res, next) => {
             // team.agents.has(agent_id) && 
             (   
                 isRoot || 
-                ( team.agent_admins.has(user_id) && team.agent_admins[user_id] === true )
+                ( team.agent_admins.has(user_id) && team.agent_admins.get(user_id) === true )
             )
         ){
             // Enumerate the agent
@@ -403,8 +403,8 @@ router.post('/enumerate/agent', (req, res, next) => {
             team.agents.has(agent_id) && 
             (   
                 isRoot || 
-                ( team.agent_admins.has(user_id) && team.agent_admins[user_id] === true ) || 
-                (team.assigned_agents.has(user_id) && team.assigned_agents[user_id][agent_id] === true)
+                ( team.agent_admins.has(user_id) && team.agent_admins.get(user_id) === true ) || 
+                (team.assigned_agents.has(user_id) && team.assigned_agents.get(user_id)[agent_id] === true)
             )
         ){
             // Enumerate the agent
@@ -513,7 +513,7 @@ router.post('/delete/user', (req, res, next) => {
             !(
                 isRoot || 
                 (
-                    team.agent_admins.has(user_id) && team.agent_admins[user_id] === true
+                    team.agent_admins.has(user_id) && team.agent_admins.get(user_id) === true
                 )
             )
         ){
