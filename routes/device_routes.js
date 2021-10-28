@@ -199,7 +199,7 @@ router.post('/create/user', async (req, res, next) => {
     }
 })
 
-router.post('/update', (req, res, next) => {
+router.post('/update/team', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
@@ -230,7 +230,61 @@ router.post('/update', (req, res, next) => {
                     // if current user is a device admin.
                     team.device_admins.has(user_id) || 
                     // if selected device has been assigned to the current user.
-                    (team.assigned_devices.has(user_id) && team.assigned_devices[user_id][device_id] === true)
+                    (team.assigned_devices.has(user_id) && team.assigned_devices.get(user_id)[device_id] === true)
+                )
+            )
+        ){
+            return res.json(not_authenticated);
+        }
+            //Update the device
+            DeviceModel.findByIdAndUpdate({ 
+                _id: device_id
+            }, 
+            data, {new : true})
+            .select('-creds')
+            .exec(
+            (err,resp) => {
+                if(err){
+                    return res.json(handle_error("There was an error while updating your device."));
+                }
+                    return res.json(handle_success({
+                        message : "Device updated successfully.",
+                        response : resp,
+                    }));
+            
+            });
+
+    });
+})
+router.post('/update/user', (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    const device_id = data.device_id;
+    data._id = device_id;
+    if(!(user_id || team_id || device_id)){
+        return res.json("Insufficient parameters.");
+    }
+    if(!(isValidObjectId(user_id) || isValidObjectId(device_id) || isValidObjectId(team_id))){
+        res.json({error : "The given ID is not valid."});
+        return;
+    }
+    TeamModel.findById({
+        _id : team_id
+    }, (err, team) => {
+        if(!team || err){
+            return res.json(handle_error("Could not retrieve valid data from database."));
+        }
+        let isRoot = is_root(team.root, user_id);
+        if( 
+            //Device exists in the team
+            !(
+                (
+                    // if current user is root user.
+                    isRoot || 
+                    // if current user owns the device.
+                    team.user_devices.has(user_id) && team.user_devices.get(user_id)[device_id] === true
+                    
                 )
             )
         ){

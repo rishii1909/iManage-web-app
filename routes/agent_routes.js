@@ -199,7 +199,7 @@ router.post('/create/user', async (req, res, next) => {
     }
 })
 
-router.post('/update', (req, res, next) => {
+router.post('/update/team', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
@@ -231,6 +231,61 @@ router.post('/update', (req, res, next) => {
                     team.agent_admins.has(user_id) || 
                     // if selected agent has been assigned to the current user.
                     (team.assigned_agents.has(user_id) && team.assigned_agents[user_id][agent_id] === true)
+                )
+            )
+        ){
+            return res.json(not_authenticated);
+        }
+            //Update the agent
+            AgentModel.findByIdAndUpdate({ 
+                _id: agent_id
+            }, 
+            data, {new : true})
+            .select('-creds')
+            .exec(
+            (err,resp) => {
+                if(err){
+                    return res.json(handle_error("There was an error while updating your agent."));
+                }
+                    return res.json(handle_success({
+                        message : "Agent updated successfully.",
+                        response : resp,
+                    }));
+            
+            });
+
+    });
+})
+
+router.post('/update/user', (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    const agent_id = data.agent_id;
+    data._id = agent_id;
+    if(!(user_id || team_id || agent_id)){
+        return res.json("Insufficient parameters.");
+    }
+    if(!(isValidObjectId(user_id) || isValidObjectId(agent_id) || isValidObjectId(team_id))){
+        res.json({error : "The given ID is not valid."});
+        return;
+    }
+    TeamModel.findById({
+        _id : team_id
+    }, (err, team) => {
+        if(!team || err){
+            return res.json(handle_error("Could not retrieve valid data from database."));
+        }
+        let isRoot = is_root(team.root, user_id);
+        if( 
+            // Agent exists in the team
+            !(
+                (
+                    // if current user is root user.
+                    isRoot || 
+                    // if current user owns the agent.
+                    team.user_agents.has(user_id) && team.user_agents.get(user_id)[agent_id] === true
+                    
                 )
             )
         ){
@@ -311,7 +366,6 @@ router.post('/enumerate/user', (req, res, next) => {
     TeamModel.findById({ 
         _id : team_id
     }, async (err, team) => {
-        // console.log(team.user_devices);
         if(!team || err){
             res.json(handle_error("Your agent could not be identified."));
         }

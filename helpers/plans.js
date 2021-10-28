@@ -75,6 +75,10 @@ exports.no_docs_or_error = (doc, error) => {
   }
 }
 
+exports.not_found = (object_name) => {
+  return this.handle_error(object_name + " not found.")
+}
+
 exports.not_authenticated = this.handle_error("You are not authenticated to perform this operation.");
 
 exports.exclusive_root_user_action = this.handle_error("This action can only be performed by the Root user.");
