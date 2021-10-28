@@ -368,8 +368,15 @@ router.post('/enumerate/user', (req, res, next) => {
         if(!team || err){
             res.json(handle_error("Your team could not be identified."));
         }
-    
-        return res.json(handle_success(team.user_devices.get(user_id)));
+        const devices_array = Object.keys(team.user_devices.get(user_id));
+        
+        return res.json(handle_success(
+            await DeviceModel.find({
+                _id : {
+                    $in : devices_array
+                }
+            })
+        ));
 
     });
 })
