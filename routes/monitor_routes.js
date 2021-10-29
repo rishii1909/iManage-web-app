@@ -6,10 +6,13 @@ const MonitorModel = require('../models/Monitor');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated } = require('../helpers/plans');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, check_monitor_type, invalid_monitor_type } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
 const DeviceModel = require('../models/Device');
+const { default: axios } = require('axios');
+const AgentModel = require('../models/Agent');
+const { refreshStyles } = require('less');
 const router = express.Router();
 
 const ssh = new NodeSSH()
@@ -20,20 +23,105 @@ router.post('/create', async (req, res, next) => {
         const data = req.body;
         let user_id = data.user_id;
         let device_id = data.device_id;
+        let agent_id = data.agent_id;
         let team_id = data.team_id;
-        if(found_invalid_ids([user_id])){
-            res.json({error : "The given User ID is not valid."});
-            return;
+        const monitor_type = data.type;
+        if(found_invalid_ids([user_id, device_id, agent_id])){
+            return res.json(handle_error("The given User ID is not valid."));
         }
 
-        User.findById({ 
+        if(!check_monitor_type(data.type)) return res.json(invalid_monitor_type());
+
+        AgentModel.findById({
+            _id : agent_id
+        })
+        .select('api_url team_id -_id')
+        .populate({
+            path : 'team_id',
+            select : 'monitor_occupancy level'
+        })
+        .exec(async (err, agent) => {
+            // Check if valid response returned.
+            const invalid = no_docs_or_error(agent, err);
+            if(invalid.is_true) return res.json(invalid.message);
+
+            // Populated declarations.
+            const team = agent.team_id;
+
+            // Check for vacancy.
+            if(team.monitor_occupancy >= get_capacity(team.level).monitors) return res.json(handle_error("Max monitors limit exceeded."));
+
+            // Fetch and store device info.
+            const device = await DeviceModel.findById({ _id : device_id }).select('-_id creds');
+            if(!device) return res.json(handle_error("Device not found."));
+            const monitor_info = { ...data, ...(Object.fromEntries(device.creds)) };
+            console.log(monitor_info);
+
+            // Add code here to check for permissions. Skipped for now.
+
+            // Call the remote agent API to create a new monitor.
+            axios.post(
+
+                `${agent.api_url}/api/${data.type}/mutate/create`, // API path
+                monitor_info // Data to be sent
+
+            ).then( async response => {
+                try {
+                    const remote_response = response.data;
+                    // If monitor could not be created.
+                    if(!remote_response.accomplished) return res.json(remote_response);
+                    const monitor = await MonitorModel.create({...monitor_info, ...{monitor_ref : remote_response.agent_id}});
+                    if(!monitor) return res.json(handle_error("Monitor was created sucessfully, but could not be added to the central database."));
+
+                    // Step 3 : Set update info
+                    let update_device = {
+                        [`monitors.${agent_id}.${monitor_type}.${monitor._id}`]: true,
+                    }
+                    let update_team = {
+                        [`monitors.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
+                        // [`user_monitors.${user_id}.${monitor._id}`]: true,
+                        $inc : { monitor_occupancy : 1 }
+                    }
+
+                    // Step 4 : Push all updates for team.
+                    await DeviceModel.updateOne(
+                        {
+                            _id: device_id,
+                        },
+                        update_device
+                    );
+                    await TeamModel.updateOne(
+                        {
+                            _id : team._id,
+                        },
+                        update_team
+                    );
+                    res.json(handle_success({
+                        message : "Monitor created successfully!",
+                        monitor : {...monitor.toObject(), ...remote_response}
+                    }))
+                } catch (err) {
+                    return res.json(handle_error(err.message));
+                }
+
+            })
+        
+        })
+        return;
+        // Alternate version saved for reference, reuse some of the code below to authenticate above.
+        User.findById({
             _id : user_id
-        }).populate('team_id').exec(async (err, user) => {
+        }).populate('team_id').populate('device_id').populate('agent_id').exec(async (err, user) => {
+        // }).populate('team_id').populate('device_id').populate('agent_id').exec(async (err, user) => {
             if(!user || err) res.json(handle_error("Could not retrieve valid data from database."));
 
             const team = user.team_id;
+            const device = user.device_id;
+            const agent = user.agent_id;
+
             const caps = get_capacity(team.level);
             const isRoot = is_root(team.root, user_id);
+
             // Check for permissions first.
             if(
                 !(
@@ -44,7 +132,6 @@ router.post('/create', async (req, res, next) => {
                     )
                 )
             ){
-                console.log(isRoot, user_id, team.root)
                 return res.json(not_authenticated);
             }
 
@@ -53,6 +140,12 @@ router.post('/create', async (req, res, next) => {
 
             // Step 2 : Create the monitor
             try {
+                axios.post(
+                    `${agent.api_url}/api/${data.type}/mutate/create`, 
+                    data
+                ).then(response => {
+                    return res.json(response);
+                })
                 const monitor = await MonitorModel.create(data);
                 if(!monitor) return res.json(handle_error("Monitor could not be created."));
 
@@ -61,6 +154,8 @@ router.post('/create', async (req, res, next) => {
                     [`monitors.${monitor._id}`]: true,
                 }
                 let update_team = {
+                    [`monitors.${data.type}.${monitor._id}`]: true,
+                    [`user_monitors.${user_id}.${monitor._id}`]: true,
                     $inc : { monitor_occupancy : 1 }
                 }
                 // Step 4 : Push all updates for team.
@@ -70,14 +165,12 @@ router.post('/create', async (req, res, next) => {
                     },
                     update_device
                 );
-                console.log(device_update);
                 const team_update = await TeamModel.updateOne(
                     {
                         _id : team._id,
                     },
                     update_team
                 );
-                console.log(team_update);
                 res.json(handle_success({
                     message : "Monitor created successfully!",
                     monitor : monitor
@@ -87,11 +180,79 @@ router.post('/create', async (req, res, next) => {
                 return res.json(handle_error(err.message));
             } 
         });
-        return;
     } catch (err) {
-        console.log(err);
-        res.json(handle_error(err));
+        res.json(handle_error(err.message));
     }
+})
+
+router.post('/dashboard/showcase', (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    TeamModel.findById({ 
+        _id : team_id
+    }, async (err, team) => {
+        // Basic check
+        const invalid = no_docs_or_error(team, err);
+        if(invalid.is_true) return res.json(invalid.message);
+
+        const binaryObject = {
+            null : 0,
+            0 : 0,
+            1 : 0,
+        };
+        const ternaryObject = {
+            null : 0,
+            0 : 0,
+            1 : 0,
+            2 : 0
+        };
+        // Looping through all agents.
+        const monitors = team.monitors.toObject();
+        if(!monitors.size) return res.json(handle_success({}))
+        const fetch_urls = await AgentModel.find({
+            _id : {
+                $in : Array.from( monitors.keys() )
+            }
+        }).select("api_url");
+        monitors.forEach( async (monitor_type, agent_key) => {            
+            // Looping through all monitor types for an agent.
+            for (const key in monitor_type) {
+                if (Object.hasOwnProperty.call(monitor_type, key)) {
+                    
+                    //Loooping through all monitors.
+                    const monitors = Object.keys(monitor_type[key]);
+                    // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
+                    const target_agent = fetch_urls.find(obj => {
+                        return obj._id == agent_key
+                    });
+                    console.log(`${target_agent.api_url}/api/${key}/fetch/view/many`)
+                    console.log(monitors);
+                    await axios.post(
+                        `${target_agent.api_url}/api/${key}/fetch/view/many`,
+                        {monitors}
+                    ).then((response) => {
+                        const resp = response.data;
+                        if(resp.accomplished){
+                            console.log(resp)
+                            for (const key in resp.response) {
+                                if (Object.hasOwnProperty.call(resp.response, key)) {
+                                    const countObj = resp.response[key];
+                                    ternaryObject[countObj._id] += countObj.count;
+                                }
+                            }
+                        }
+                    }).catch((error) => {
+                        console.log(error.message);
+                    })
+
+                    // Add check for enabled/disabled monitors here later.
+                }
+            }
+            console.log('here');
+            return res.json({binaryObject, ternaryObject});
+        })
+    });
 })
 
 
@@ -115,18 +276,12 @@ router.post('/update', (req, res, next) => {
             return res.json(handle_error("Could not retrieve valid data from database."));
         }
         let isRoot = is_root(team.root, user_id);
-        console.log(team.monitors);
-        if( 
-            //Monitor exists in the team
+        if(
             !(
-                team.monitors.has(monitor_id) && 
+                isRoot || 
                 (
-                    // if current user is root user.
-                    isRoot || 
-                    // if current user is a monitor admin.
-                    team.monitor_admins.has(user_id) || 
-                    // if selected monitor has been assigned to the current user.
-                    (team.assigned_monitors.has(user_id) && team.assigned_monitors.get(user_id)[monitor_id] === true)
+                    team.monitor_admins.has(user_id) && 
+                    team.monitor_admins.get(user_id) === true
                 )
             )
         ){
@@ -151,60 +306,6 @@ router.post('/update', (req, res, next) => {
 
     });
 })
-router.post('/update/user', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    const monitor_id = data.monitor_id;
-    data._id = monitor_id;
-    if(!(user_id || team_id || monitor_id)){
-        return res.json("Insufficient parameters.");
-    }
-    if(!(isValidObjectId(user_id) || isValidObjectId(monitor_id) || isValidObjectId(team_id))){
-        res.json({error : "The given ID is not valid."});
-        return;
-    }
-    TeamModel.findById({
-        _id : team_id
-    }, (err, team) => {
-        if(!team || err){
-            return res.json(handle_error("Could not retrieve valid data from database."));
-        }
-        let isRoot = is_root(team.root, user_id);
-        if( 
-            //Monitor exists in the team
-            !(
-                (
-                    // if current user is root user.
-                    isRoot || 
-                    // if current user owns the monitor.
-                    team.user_monitors.has(user_id) && team.user_monitors.get(user_id)[monitor_id] === true
-                    
-                )
-            )
-        ){
-            return res.json(not_authenticated);
-        }
-            //Update the monitor
-            MonitorModel.findByIdAndUpdate({ 
-                _id: monitor_id
-            }, 
-            data, {new : true})
-            .select('-creds')
-            .exec(
-            (err,resp) => {
-                if(err){
-                    return res.json(handle_error("There was an error while updating your monitor."));
-                }
-                    return res.json(handle_success({
-                        message : "Monitor updated successfully.",
-                        response : resp,
-                    }));
-            
-            });
-
-    });
-})
 
 router.post('/enumerate/team', (req, res, next) => {
     const data = req.body;
@@ -214,7 +315,6 @@ router.post('/enumerate/team', (req, res, next) => {
     if( found_invalid_ids([user_id, team_id]) ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
-
     TeamModel.findById({ 
         _id : team_id
     }, async (err, team) => {

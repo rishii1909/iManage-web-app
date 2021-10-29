@@ -34,6 +34,24 @@ exports.get_capacity = (level) => {
   }
 }
 
+const monitor_types = new Set([
+  "url_monitor",
+  "tcp_monitor",
+  "cpu_monitor",
+  "disk_monitor",
+  "file_monitor",
+  "load_monitor",
+  "swap_monitor",
+  "inode_monitor",
+  "service_monitor",
+  "cron_monitor",
+  "snmp_monitor",
+])
+exports.check_monitor_type = (type) => {
+  return monitor_types.has(type);
+}
+exports.invalid_monitor_type = () => { return this.handle_error("Given monitor type is invalid.") };
+
 exports.handle_error = (error_message_or_object) => {
   return {
       accomplished : false,

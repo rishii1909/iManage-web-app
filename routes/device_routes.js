@@ -436,7 +436,7 @@ router.post('/enumerate/device', (req, res, next) => {
                 console.log(enumerate);
                 // device.monitors = device_monitors;
             }
-            return res.json(handle_success(enumerate ? {...device._doc, ...{monitors : enumerate}} : device));
+            return res.json(handle_success(enumerate ? {...(device.toObject()), ...{monitors : enumerate}} : device));
         }else{
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }

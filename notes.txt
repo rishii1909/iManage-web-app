@@ -1,0 +1,261 @@
+
+// router.post('/enumerate/team', (req, res, next) => {
+//     const data = req.body;
+//     const user_id = data.user_id;
+//     const team_id = data.team_id;
+//     console.log(user_id, team_id);
+//     if( found_invalid_ids([user_id, team_id]) ){
+//         return res.json(handle_error("Invalid parameter [id]s."))
+//     }
+//     TeamModel.findById({ 
+//         _id : team_id
+//     }, async (err, team) => {
+
+//         if(!team || err){
+//             res.json(handle_error("Your team could not be identified."));
+//         }
+    
+//         let isRoot = is_root(team.root, user_id);
+
+//         if(
+//             // team.monitors.has(monitor_id) && 
+//             (   
+//                 isRoot || 
+//                 ( team.device_admins.has(user_id) && team.device_admins[user_id] === true )
+//             )
+//         ){
+//             // Enumerate the monitor
+//             let monitors_array = Array.from( team.monitors.keys() );
+//             return res.json(handle_success(
+//                 await MonitorModel.find({
+//                     _id : {
+//                         $in : monitors_array
+//                     }
+//                 })
+//             ));
+//         }else{
+//             return res.json(not_authenticated);
+//         }
+
+//     });
+// })
+// router.post('/enumerate/user', (req, res, next) => {
+//     const data = req.body;
+//     const user_id = data.user_id;
+//     const team_id = data.team_id;
+//     // console.log("user_id : ", user_id,"team_id : ", team_id);
+//     if( found_invalid_ids([user_id, team_id]) ){
+//         return res.json(handle_error("Invalid parameter [id]s."))
+//     }
+
+//     TeamModel.findById({ 
+//         _id : team_id
+//     }, async (err, team) => {
+//         // console.log(team.user_monitors);
+//         if(!team || err){
+//             res.json(handle_error("Your team could not be identified."));
+//         }
+//         const monitors_array = Object.keys(team.user_monitors.get(user_id));
+        
+//         return res.json(handle_success(
+//             await MonitorModel.find({
+//                 _id : {
+//                     $in : monitors_array
+//                 }
+//             })
+//         ));
+
+//     });
+// })
+
+// router.post('/enumerate/monitor', (req, res, next) => {
+//     const data = req.body;
+//     const user_id = data.user_id;
+//     const team_id = data.team_id;
+//     const monitor_id = data.monitor_id;
+//     if( found_invalid_ids([user_id, team_id, monitor_id]) ){
+//         return res.json(handle_error("Invalid parameter [id]s."))
+//     }
+
+//     TeamModel.findById({
+//         _id : team_id
+//     }, async (err, team) => {
+
+//         if(!team || err){
+//             res.json(handle_error("Could not retrieve valid data from database."));
+//         }
+    
+//         let isRoot = is_root(team.root, user_id);
+
+//         if(
+//             team.monitors.has(monitor_id) && 
+//             (   
+//                 isRoot || 
+//                 ( team.device_admins.has(user_id) && team.device_admins[user_id] === true ) || 
+//                 (team.assigned_monitors.has(user_id) && team.assigned_monitors[user_id][monitor_id] === true)
+//             )
+//         ){
+//             // Enumerate the monitor
+//             var monitor = {};
+//             if(data.show_creds){
+//                 monitor = await MonitorModel.findById({ 
+//                     _id : monitor_id
+//                 });
+//                 return res.json(handle_success(monitor));
+//             }
+//             return res.json( 
+//                 await MonitorModel.findById({ 
+//                 _id : monitor_id
+//                 }).select('-creds -username -team')
+//             )
+//         }else{
+//             return res.json(handle_error("You're not authenticated to perform this operation."));
+//         }
+
+//     });
+// })
+
+// router.post('/delete/team', (req, res, next) => {
+//     const data = req.body;
+//     const user_id = data.user_id;
+//     const team_id = data.team_id;
+//     const monitor_id = data.monitor_id;
+//     if(!(user_id || team_id || monitor_id)){
+//         return res.json("Insufficient parameters.");
+//     }
+
+//     if(found_invalid_ids([user_id, team_id, monitor_id])){
+//         return res.json(handle_error("Invalid parameter [id]s."))
+//     }
+//     TeamModel.findById({
+//         _id : team_id
+//     }, (err, team) => {
+
+//         if(!team || err){
+//             return res.json(handle_error(err));
+//         }
+//         const isRoot = is_root(team.root, user_id);
+//         if(
+//             // team.monitors.has(monitor_id) && 
+//             !(   
+//                 isRoot || 
+//                 ( team.device_admins.has(user_id) && team.device_admins.get(user_id) === true ) || 
+//                 (team.assigned_monitors.has(user_id) && team.assigned_monitors.get(user_id)[monitor_id] === true)
+//             )
+//         ){
+//             console.log("Root  : ", team.root, "User ID : ", user_id)
+//             return res.json(handle_error("You're not authenticated to perform this operation."));
+//         }
+//         //Delete the monitor
+//         MonitorModel.deleteOne({
+//             _id: data.monitor_id
+//         }, (err) => {
+//             if(err){
+//                 return res.json(handle_error("There was an error while deleting your monitor."));
+//             }else{
+//                 team.monitors.delete(monitor_id);
+//                 TeamModel.updateOne({
+//                     _id: team_id
+//                 }, {
+//                     monitors: team.monitors,
+//                     $inc : { monitor_occupancy : -1 }
+//                 },
+//                 (err) => {
+//                    if(err){
+//                        console.log(`Error: ` + err)
+//                    }
+//                 });
+//                 return res.json(handle_success("Monitor deleted successfully."));
+//             }
+//         });
+        
+//     });
+// })
+
+// router.post('/delete/user', (req, res, next) => {
+//     const data = req.body;
+//     const user_id = data.user_id;
+//     const delete_user_id = data.delete_user_id;
+//     const team_id = data.team_id;
+//     const monitor_id = data.monitor_id;
+
+//     if(!(user_id || team_id || monitor_id)){
+//         return res.json("Insufficient parameters.");
+//     }
+
+//     if(found_invalid_ids([user_id, team_id, monitor_id])){
+//         return res.json(handle_error("Invalid parameter [id]s."))
+//     }
+//     TeamModel.findById({
+//         _id : team_id
+//     }, (err, team) => {
+//         // Basic check.
+//         const invalid = no_docs_or_error(team, err);
+//         if(invalid.is_true){
+//             console.log(err, team);
+//             return res.json(invalid.message);
+//         }
+//         // Auth check.
+//         const isRoot = is_root(team.root, user_id);
+//         if(
+//             !(
+//                 isRoot || 
+//                 (
+//                     team.device_admins.has(user_id) && team.device_admins[user_id] === true
+//                 )
+//             )
+//         ){
+//             console.log(team.user_monitors, user_id)
+//             return res.json(not_authenticated);
+//         }
+
+//         if( !isRoot && !( team.user_monitors.has(delete_user_id) && team.user_monitors[delete_user_id].has(monitor_id) ) ){
+//             console.log(team.user_monitors, delete_user_id, monitor_id);
+//             return res.json(handle_error("Monitor not found."));
+//         }
+//         // console.log(team.user_monitors.get(delete_user_id), typeof team.user_monitors.get(delete_user_id));
+        
+//         try {
+//             delete team.user_monitors.get(delete_user_id)[monitor_id];
+//         } catch (err) {
+//             return res.json(handle_error("There was an error while deleting your monitor."))
+//         }
+//         // console.log(team.user_monitors.get(delete_user_id))
+
+//         //Delete the monitor
+//         MonitorModel.deleteOne({
+//             _id: data.monitor_id
+//         }, (err) => {
+//             if(err){
+//                 return res.json(handle_error("There was an error while deleting your monitor."));
+//             }else{
+//                 TeamModel.updateOne({ 
+//                     _id: team_id
+//                 }, 
+//                 {
+//                     [`user_monitors.${delete_user_id}`]: team.user_monitors[delete_user_id],
+//                     $inc : { monitor_occupancy : -1 }
+//                 },
+//                 (err) => {
+//                    if(err){
+//                        console.log(`Error: ` + err)
+//                    }
+//                 });
+//                 return res.json(handle_success("Monitor deleted successfully."));
+//             }
+//         });
+        
+//     });
+// })
+
+// router.post('/enumerate', async (req, res, next) => {
+//     const data = req.body;
+//     const ids_array = JSON.parse(data.monitor_ids);
+//     await MonitorModel.find().where('_id').in(ids_array).select('-creds').exec((err, resp) => {
+//         if(err){
+//             res.json(handle_error(err));
+//         }else{
+//             res.json(handle_success(resp))
+//         }
+//     });
+// })

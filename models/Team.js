@@ -27,6 +27,10 @@ const TeamSchema = new Schema({
         type : Map,
         default : {}
     },
+    monitors : {
+        type : Map,
+        default : {}
+    },
     user_devices : {
         type : Map,
         default : {},
@@ -87,6 +91,14 @@ const TeamSchema = new Schema({
         type : Map,
         default : {},
     },
+    device_groups : {
+        type : Map,
+        default : {}
+    },
+    analytic_groups : {
+        type : Map,
+        default : {}
+    }
 }, { versionKey: false })
 
 
