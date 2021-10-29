@@ -32,7 +32,7 @@ const device_group_routes = require("./routes/device_group_routes");
 const monitor_routes = require("./routes/monitor_routes");
 const agent_routes = require("./routes/agent_routes");
 const user_routes = require("./routes/user_routes");
-const notif_routes = require("./routes/notification_template_routes");
+// const notif_routes = require("./routes/notification_template_routes");
 
 const app = express();
 app.use(cors({ credentials: true }))
@@ -51,7 +51,7 @@ app.use('/devices', passport.authenticate('jwt', { session : false }) ,device_ro
 app.use('/device_groups', passport.authenticate('jwt', { session : false }) ,device_group_routes);
 app.use('/monitors', passport.authenticate('jwt', { session : false }) ,monitor_routes);
 app.use('/agents', passport.authenticate('jwt', { session : false }) ,agent_routes);
-app.use('/notifs', passport.authenticate('jwt', { session : false }) ,notif_routes);
+// app.use('/notifs', passport.authenticate('jwt', { session : false }) ,notif_routes);
 app.use('/users', passport.authenticate('jwt', { session : false }) ,user_routes);
 
 app.use((err, req, res, next) => {
