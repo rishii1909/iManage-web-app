@@ -421,7 +421,7 @@ router.post('/enumerate/device', (req, res, next) => {
                 );
             }else{
                 device = await DeviceModel.findById(
-                    { 
+                    {
                         _id : device_id
                     }, 
                 ).select('-creds -username -team');
@@ -429,7 +429,47 @@ router.post('/enumerate/device', (req, res, next) => {
             }
             let enumerate = {}; 
             if(data.show_monitors){
-                let monitors_array = Array.from( device.monitors.keys() );
+                let obtained_monitors = {};
+                device.monitors.forEach(agent => {
+                    for (const agent_key in agent) {
+                        if (Object.hasOwnProperty.call(agent, agent_key)) {
+                            const category = agent[agent_key];
+                            obtained_monitors[agent_key] = [];
+                            for (const category_key in category) {
+                                if (Object.hasOwnProperty.call(category, category_key)) {
+                                    const monitor = category[category_key];
+                                    obtained_monitors[agent_key].push(category_key);
+                                }
+                            }
+                        }
+                    }
+                });
+                for (const key in obtained_monitors) {
+                    if (Object.hasOwnProperty.call(obtained_monitors, key)) {
+                        var category = obtained_monitors[key];
+                        await MonitorModel.find({
+                            _id : {
+                                $in : category
+                            }
+                        },
+                        (err, monitors) => {
+                            obtained_monitors[key] = monitors;
+                        });
+                    }
+                }
+                // for (const key in device.monitors) {
+                //     console.log(key)
+                //     // if (Object.hasOwnProperty.call(device.monitors, key)) {
+                //         // const agent_object = device.monitors[key];
+                //         // for (const type_key in agent_object) {
+                //             // if (Object.hasOwnProperty.call(agent_object, type_key)) {
+                //                 // const monitor_node = agent_object[type_key];
+                //                 // monitors_array.push(monitor_node)
+                //             // }
+                //         // }
+                //     // }
+                // }
+                return res.json(obtained_monitors);
                 enumerate = await MonitorModel.find({
                     _id : {
                         $in : monitors_array
