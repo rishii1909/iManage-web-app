@@ -469,16 +469,9 @@ router.post('/enumerate/device', (req, res, next) => {
                 //         // }
                 //     // }
                 // }
-                return res.json(obtained_monitors);
-                enumerate = await MonitorModel.find({
-                    _id : {
-                        $in : monitors_array
-                    }
-                });
-                console.log(enumerate);
-                // device.monitors = device_monitors;
+                return res.json(handle_success(obtained_monitors));
             }
-            return res.json(handle_success(enumerate ? {...(device.toObject()), ...{monitors : enumerate}} : device));
+            return res.json(handle_success(obtained_monitors ? {...(device.toObject()), ...{monitors : enumerate}} : device));
         }else{
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }
