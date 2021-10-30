@@ -394,9 +394,8 @@ router.post('/enumerate/monitor', (req, res, next) => {
         }
     
         let isRoot = is_root(team.root, user_id);
-
+        // if(!team.monitors.has(monitor_id)) return res.json(handle_error("Monitor not found in your Team"));
         if(
-            team.monitors.has(monitor_id) && 
             (   
                 isRoot || 
                 ( team.monitor_admins.has(user_id) && team.monitor_admins[user_id] === true ) || 
@@ -404,19 +403,30 @@ router.post('/enumerate/monitor', (req, res, next) => {
             )
         ){
             // Enumerate the monitor
-            var monitor = {};
-            if(data.show_creds){
-                monitor = await MonitorModel.findById({ 
-                    _id : monitor_id
-                });
-                return res.json(handle_success(monitor));
-            }
-            return res.json( 
-                await MonitorModel.findById({ 
-                _id : monitor_id
-                }).select('-creds -username -team')
-            )
+            await MonitorModel.findById({ 
+            _id : monitor_id
+            })
+            .populate({
+                path : 'agent_id',
+                select : 'api_url -_id'
+            }).exec( async (err, monitor) => {
+                // Call the remote agent API.
+                axios.post(
+                    `${monitor.agent_id.api_url}/api/${monitor.type}/fetch/view/one`, // API path
+                    {agent_id : monitor.monitor_ref} // Data to be sent
+                
+                ).then( async response => {
+                    try {
+                        const remote_response = response.data;
+                        return res.json(handle_success(remote_response));
+                    } catch (err) {
+                        return res.json(handle_error(err.message));
+                    }
+                
+                })
+            })
         }else{
+            console.log(isRoot)
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }
 

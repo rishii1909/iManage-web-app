@@ -6,6 +6,7 @@ const Schema = mongoose.Schema;
 const MonitorSchema = new Schema({
     agent_id : {
         type : Schema.Types.ObjectId,
+        ref : 'Agent',
         required : true,
     },
     device_id : {
