@@ -35,6 +35,7 @@ exports.get_capacity = (level) => {
 }
 
 const monitor_types = new Set([
+  "uptime_monitor",
   "url_monitor",
   "tcp_monitor",
   "cpu_monitor",
