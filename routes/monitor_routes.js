@@ -364,6 +364,8 @@ router.post('/enumerate/user', (req, res, next) => {
         if(!team || err){
             res.json(handle_error("Your team could not be identified."));
         }
+        const user_monitors_object = team.user_monitors.get(user_id);
+        if(!user_monitors_object) return res.json(handle_error("You haven't created any devices yet."));
         const monitors_array = Object.keys(team.user_monitors.get(user_id));
         
         return res.json(handle_success(
