@@ -227,8 +227,6 @@ router.post('/dashboard/showcase', (req, res, next) => {
                     const target_agent = fetch_urls.find(obj => {
                         return obj._id == agent_key
                     });
-                    console.log(`${target_agent.api_url}/api/${key}/fetch/view/many`)
-                    console.log(monitors);
                     await axios.post(
                         `${target_agent.api_url}/api/${key}/fetch/view/many`,
                         {monitors}
@@ -250,7 +248,6 @@ router.post('/dashboard/showcase', (req, res, next) => {
                     // Add check for enabled/disabled monitors here later.
                 }
             }
-            console.log('here');
             return res.json({binaryObject, ternaryObject});
         })
     });

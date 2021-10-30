@@ -369,6 +369,8 @@ router.post('/enumerate/user', (req, res, next) => {
         if(!team || err){
             res.json(handle_error("Your agent could not be identified."));
         }
+        const user_agents_object = team.user_agents.get(user_id);
+        if(!user_agents_object) return res.json(handle_error("You haven't created any devices yet."));
         let agents_array = Object.keys(team.user_agents.get(user_id));
         return res.json(handle_success(
             await AgentModel.find({
