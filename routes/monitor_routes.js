@@ -13,6 +13,7 @@ const DeviceModel = require('../models/Device');
 const { default: axios } = require('axios');
 const AgentModel = require('../models/Agent');
 const { refreshStyles } = require('less');
+const NotificationTemplateModel = require('../models/NotificationTemplate');
 const router = express.Router();
 
 const ssh = new NodeSSH()
@@ -418,7 +419,17 @@ router.post('/enumerate/monitor', (req, res, next) => {
                 ).then( async response => {
                     try {
                         const remote_response = response.data;
-                        return res.json(handle_success(remote_response));
+                        NotificationTemplateModel.findById({ 
+                            _id : monitor.notification_template
+                        }, (err, doc) => {
+                            const final_response = {
+                                monitor : remote_response
+                            };
+                            if(doc){
+                                final_response.notification_template = doc;
+                            }
+                            return res.json(handle_success(final_response));
+                        });
                     } catch (err) {
                         return res.json(handle_error(err.message));
                     }
