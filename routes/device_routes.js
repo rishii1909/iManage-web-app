@@ -430,6 +430,7 @@ router.post('/enumerate/device', (req, res, next) => {
             let enumerate = {}; 
             if(data.show_monitors){
                 let obtained_monitors = {};
+                let obtained_monitors_array = [];
                 device.monitors.forEach(agent => {
                     for (const agent_key in agent) {
                         if (Object.hasOwnProperty.call(agent, agent_key)) {
@@ -438,40 +439,44 @@ router.post('/enumerate/device', (req, res, next) => {
                             for (const category_key in category) {
                                 if (Object.hasOwnProperty.call(category, category_key)) {
                                     const monitor = category[category_key];
-                                    obtained_monitors[agent_key].push(category_key);
+                                    // Waiting for approval
+                                    // obtained_monitors[agent_key].push(category_key);
+                                    obtained_monitors_array.push(category_key)
                                 }
                             }
                         }
                     }
                 });
-                for (const key in obtained_monitors) {
-                    if (Object.hasOwnProperty.call(obtained_monitors, key)) {
-                        var category = obtained_monitors[key];
-                        await MonitorModel.find({
-                            _id : {
-                                $in : category
-                            }
-                        },
-                        (err, monitors) => {
-                            obtained_monitors[key] = monitors;
-                        });
+
+                await MonitorModel.find({
+                    _id : {
+                        $in : obtained_monitors_array
                     }
-                }
-                // for (const key in device.monitors) {
-                //     console.log(key)
-                //     // if (Object.hasOwnProperty.call(device.monitors, key)) {
-                //         // const agent_object = device.monitors[key];
-                //         // for (const type_key in agent_object) {
-                //             // if (Object.hasOwnProperty.call(agent_object, type_key)) {
-                //                 // const monitor_node = agent_object[type_key];
-                //                 // monitors_array.push(monitor_node)
-                //             // }
-                //         // }
-                //     // }
+                },
+                (err, monitors) => {
+                    if(err) return res.json(handle_error(err))
+
+                    if(!monitors) return res.json(handle_error({message : "No monitors found."}))
+
+                    return res.json(handle_success(monitors))
+                });
+
+                // Waiting for approval
+                // for (const key in obtained_monitors) {
+                //     if (Object.hasOwnProperty.call(obtained_monitors, key)) {
+                //         var category = obtained_monitors[key];
+                //         await MonitorModel.find({
+                //             _id : {
+                //                 $in : category
+                //             }
+                //         },
+                //         (err, monitors) => {
+                //             obtained_monitors[key] = monitors;
+                //         });
+                //     }
                 // }
-                return res.json(handle_success(obtained_monitors));
+                
             }
-            return res.json(handle_success(obtained_monitors ? {...(device.toObject()), ...{monitors : enumerate}} : device));
         }else{
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }
