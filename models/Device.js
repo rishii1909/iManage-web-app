@@ -31,7 +31,7 @@ const DeviceSchema = new Schema({
         required : true,
     },
     creds : {
-        type : Map,
+        type : Schema.Types.Mixed,
         required : true
     },
     monitors : {

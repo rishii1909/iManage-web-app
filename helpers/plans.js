@@ -35,19 +35,30 @@ exports.get_capacity = (level) => {
 }
 
 const monitor_types = new Set([
-  "uptime_monitor",
-  "url_monitor",
-  "tcp_monitor",
-  "cpu_monitor",
-  "disk_monitor",
-  "file_monitor",
-  "load_monitor",
-  "swap_monitor",
-  "inode_monitor",
-  "service_monitor",
-  "cron_monitor",
-  "snmp_monitor",
+  "uptime_monitor", // 
+  "url_monitor", // 
+  "tcp_monitor", // 
+  "cpu_monitor", // 3 state
+  "disk_monitor", // 3 state
+  "file_monitor", // 3 state
+  "load_monitor", // 
+  "swap_monitor", // 
+  "inode_monitor", // 
+  "service_monitor", // 
+  "cron_monitor", // 
+  "snmp_monitor", // 
 ])
+
+exports.binary_monitors = {
+  "uptime_monitor" : true,
+  "url_monitor" : true,
+  "tcp_monitor" : true,
+  "cpu_monitor" : false,
+  "disk_monitor" : false,
+  "file_monitor" : false,
+  "service_monitor" : true,
+  "snmp_monitor" : false,
+}
 exports.check_monitor_type = (type) => {
   return monitor_types.has(type);
 }
@@ -72,14 +83,23 @@ exports.is_root = (root_id, user_id) => {
   // return root_id === user_id.toString() ? true : false;
 }
 
-exports.found_invalid_ids = (arr) => {
-  arr.forEach(id => {
+exports.found_invalid_ids = (array_of_ids, res) => {
+  let check = false;
+  let ids = [];
+  array_of_ids.forEach(id => {
     if(!isValidObjectId(id)){
       console.log("Invalid ID found at : ", id);
-      return true;
+      ids.push(id);
+      check = true;
     }
   });
-  return false;
+  return {
+    invalid : check,
+    ...(ids.length) && {message : res.json(this.handle_error({
+      message : "Invalid IDs found.",
+      ids : ids
+    }))}
+  };
 }
 
 exports.no_docs_or_error = (doc, error) => {
@@ -92,6 +112,13 @@ exports.no_docs_or_error = (doc, error) => {
   return {
     is_true : false
   }
+}
+
+exports.validate_response = (err, doc, doc_type, res, callback) => {
+  if(err) return res.json(this.handle_error(err.message)); 
+  else if(!doc) return res.json(this.not_found(doc_type))
+  
+  callback();
 }
 
 exports.not_found = (object_name) => {

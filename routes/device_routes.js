@@ -389,7 +389,7 @@ router.post('/enumerate/device', (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     const device_id = data.device_id;
-    if( found_invalid_ids([user_id, team_id, device_id]) ){
+    if( found_invalid_ids([user_id, team_id, device_id]).invalid ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
 
@@ -402,15 +402,15 @@ router.post('/enumerate/device', (req, res, next) => {
         }
     
         let isRoot = is_root(team.root, user_id);
-
         if(
-            team.devices.has(device_id) && 
             (   
                 isRoot || 
-                ( team.device_admins.has(user_id) && team.device_admins[user_id] === true ) || 
-                (team.assigned_devices.has(user_id) && team.assigned_devices[user_id][device_id] === true)
+                ( team.device_admins.has(user_id) && team.device_admins.get(user_id) == true ) || 
+                (team.assigned_devices.has(user_id) && team.assigned_devices.get(user_id)[device_id] == true) || 
+                (team.user_devices.has(user_id) && team.user_devices.get(user_id)[device_id] == true)
             )
         ){
+            console.log('here')
             // Enumerate the device
             var device = {};
             if(data.show_creds){
@@ -458,7 +458,7 @@ router.post('/enumerate/device', (req, res, next) => {
 
                     if(!monitors) return res.json(handle_error({message : "No monitors found."}))
 
-                    return res.json(handle_success(monitors))
+                    return res.json(handle_success({...(device.toObject()), ...{monitors : monitors} }))
                 });
 
                 // Waiting for approval

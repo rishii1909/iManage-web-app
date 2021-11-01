@@ -6,7 +6,7 @@ const MonitorModel = require('../models/Monitor');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, check_monitor_type, invalid_monitor_type } = require('../helpers/plans');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, check_monitor_type, invalid_monitor_type, binary_monitors } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
 const DeviceModel = require('../models/Device');
@@ -190,6 +190,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
+    let test = null;
     TeamModel.findById({ 
         _id : team_id
     }, async (err, team) => {
@@ -208,6 +209,29 @@ router.post('/dashboard/showcase', (req, res, next) => {
             1 : 0,
             2 : 0
         };
+        const final_response_object = {
+            level_1 : {
+                two_states : {
+                    null : 0,
+                    0 : 0,
+                    1 : 0,
+                },
+                three_states : {
+                    null : 0,
+                    0 : 0,
+                    1 : 0,
+                    2 : 0
+                }
+            },
+
+            level_2 : {
+                
+            },
+
+            level_3 : {
+
+            }
+        }
         // Looping through all agents.
         const monitors = team.monitors.toObject();
         if(!monitors.size) return res.json(handle_success({}))
@@ -218,26 +242,43 @@ router.post('/dashboard/showcase', (req, res, next) => {
         }).select("api_url");
         monitors.forEach( async (monitor_type, agent_key) => {            
             // Looping through all monitor types for an agent.
-            for (const key in monitor_type) {
-                if (Object.hasOwnProperty.call(monitor_type, key)) {
+            for (const monitor_type_key in monitor_type) {
+                if (Object.hasOwnProperty.call(monitor_type, monitor_type_key)) {
                     
                     //Loooping through all monitors.
-                    const monitors = Object.keys(monitor_type[key]);
+                    const monitors = Object.keys(monitor_type[monitor_type_key]);
                     // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
                     const target_agent = fetch_urls.find(obj => {
                         return obj._id == agent_key
                     });
                     await axios.post(
-                        `${target_agent.api_url}/api/${key}/fetch/view/many`,
+                        `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
                         {monitors}
                     ).then((response) => {
                         const resp = response.data;
+                        test = resp;
                         if(resp.accomplished){
-                            console.log(resp)
                             for (const key in resp.response) {
                                 if (Object.hasOwnProperty.call(resp.response, key)) {
-                                    const countObj = resp.response[key];
-                                    ternaryObject[countObj._id] += countObj.count;
+                                    const rec = resp.response[key];
+                                    console.log(rec);
+                                    // Adding to level 1 - starts
+                                    if(binary_monitors[monitor_type_key] === true){
+                                        final_response_object.level_1.two_states[rec._id.monitor_status] += rec.count
+                                    }else{
+                                        final_response_object.level_1.three_states[rec._id.monitor_status] += rec.count
+                                    }
+                                    // Adding to level 1 - ends
+
+                                    // Adding to level 2 - starts
+                                    if( final_response_object.level_2[rec._id.device] && final_response_object.level_2[rec._id.device][rec._id.monitor_status] ){
+                                        final_response_object.level_2[rec._id.device][rec._id.monitor_status] += rec.count;
+                                    }else{
+                                        final_response_object.level_2[rec._id.device] = {
+                                            [rec._id.monitor_status] : rec.count
+                                        }
+                                    }
+                                    // Adding to level 2 - ends
                                 }
                             }
                         }
@@ -248,7 +289,8 @@ router.post('/dashboard/showcase', (req, res, next) => {
                     // Add check for enabled/disabled monitors here later.
                 }
             }
-            return res.json({binaryObject, ternaryObject});
+            // return res.json({binaryObject, ternaryObject});
+            return res.json(final_response_object);
         })
     });
 })

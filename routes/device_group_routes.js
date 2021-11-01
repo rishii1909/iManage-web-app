@@ -6,7 +6,7 @@ const MonitorModel = require('../models/Monitor');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated } = require('../helpers/plans');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, validate_response } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
 const DeviceModel = require('../models/Device');
@@ -18,53 +18,52 @@ router.post('/create', async (req, res, next) => {
         const data = req.body;
         let user_id = data.user_id;
         let team_id = data.team_id;
-        if(found_invalid_ids([user_id])){
-            res.json({error : "The given User ID is not valid."});
-            return;
+        const id_check = found_invalid_ids([user_id, team_id], res)
+        console.log(id_check)
+        if(id_check.invalid){
+            return id_check.message;
         }
-        User.findById({ 
-            _id : user_id
-        }).populate('team_id').exec(async (err, user) => {
-            if(!user || err) res.json(handle_error("Could not retrieve valid data from database."));
-
-            const team = user.team_id;
-            const isRoot = is_root(team.root, user_id);
-            // Check for permissions first.
-            if(
-                !(
-                    isRoot || 
-                    (
-                        team.device_admins.has(user_id) && 
-                        team.device_admins.get(user_id) === true
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            
+            validate_response(err, team, "Team", res, async () => {
+                const isRoot = is_root(team.root, user_id);
+                // Check for permissions first.
+                if(
+                    !(
+                        isRoot || 
+                        (
+                            team.device_admins.has(user_id) && 
+                            team.device_admins.get(user_id) === true
+                        )
                     )
-                )
-            ){
-                return res.json(not_authenticated);
-            }
-
-            try {
-                const device_group = await DeviceGroupModel.create(data);
-                if(!device_group) return res.json(handle_error("Device Group could not be created."));
-
-                // Step 3 : Set update info
-                let update_device_group = {
-                    [`device_groups.${device_group._id}`]: true,
+                ){
+                    return res.json(not_authenticated);
+                }   
+                try {
+                    const device_group = await DeviceGroupModel.create(data);
+                    if(!device_group) return res.json(handle_error("Device Group could not be created."));  
+                    // Step 3 : Set update info
+                    let update_device_group = {
+                        [`device_groups.${device_group._id}`]: true,
+                    }
+                    // Step 4 : Push all updates for team.
+                    const team_update = await TeamModel.updateOne(
+                        {
+                            _id : team._id,
+                        },
+                        update_device_group
+                    );
+                    res.json(handle_success({
+                        message : "Device Group created successfully!",
+                        device_group : device_group
+                    }))
+                } catch (err) {
+                     console.log(err);
+                     return res.json(handle_error(err.message));
                 }
-                // Step 4 : Push all updates for team.
-                const team_update = await TeamModel.updateOne(
-                    {
-                        _id : team._id,
-                    },
-                    update_device_group
-                );
-                res.json(handle_success({
-                    message : "Device Group created successfully!",
-                    device_group : device_group
-                }))
-            } catch (err) {
-                console.log(err);
-                return res.json(handle_error(err.message));
-            } 
+            })
         });
         return;
     } catch (err) {
@@ -80,20 +79,13 @@ router.post('/update', (req, res, next) => {
     const team_id = data.team_id;
     const device_group_id = data.device_group_id
 
-    if(!(user_id || team_id || device_group_id)){
-        return res.json("Insufficient parameters.");
-    }
-    if(!(isValidObjectId(user_id) || isValidObjectId(monitor_id) || isValidObjectId(team_id))){
-        res.json({error : "The given ID is not valid."});
-        return;
-    }
+    const ic = found_invalid_ids([user_id, team_id, device_group_id], res);
+    if(ic.invalid) return res.json(ic.message);
     TeamModel.findById({
         _id : team_id
     }, (err, team) => {
 
-        if(!team || err){
-            return res.json(handle_error("Could not retrieve valid data from database."));
-        }
+        
         let isRoot = is_root(team.root, user_id);
         if(
             !(
