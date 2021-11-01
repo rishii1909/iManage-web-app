@@ -317,7 +317,7 @@ router.post('/enumerate/team', (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     console.log(user_id, team_id);
-    if( found_invalid_ids([user_id, team_id]) ){
+    if( found_invalid_ids([user_id, team_id]).invalid ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
 
