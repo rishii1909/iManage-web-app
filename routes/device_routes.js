@@ -355,7 +355,8 @@ router.post('/enumerate/team', async (req, res, next) => {
             // ){
             //     return res.json(not_authenticated);
             // }
-
+            console.log(team.devices.length)
+            if(team.devices.length == 0) return res.json(handle_success([]));
             DeviceModel.find(
                 {
                     _id : {
