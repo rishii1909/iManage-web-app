@@ -270,7 +270,8 @@ router.post('/dashboard/showcase', (req, res, next) => {
                 $in : Array.from( team_monitors.keys() ).concat(Array.from( user_monitors.keys() ))
             }
         }).select("api_url");
-        monitors.forEach( async (monitor_type, agent_key) => {            
+        console.log(team_monitors);
+        team_monitors.forEach( async (monitor_type, agent_key) => {            
             // Looping through all monitor types for an agent.
             for (const monitor_type_key in monitor_type) {
                 if (Object.hasOwnProperty.call(monitor_type, monitor_type_key)) {
@@ -333,7 +334,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             }
                         }
                     }).catch((err) => {
-                        return res.json(handle_error(err.message ? err.message : err))
+                        console.log(handle_error(err.message ? err.message : err))
                     })
 
                     // Add check for enabled/disabled monitors here later.
