@@ -208,7 +208,7 @@ router.post('/update/team', async (req, res, next) => {
                 }
                 if(!agent) return res.json(not_found("Agent"))
 
-                return res.json(handle_success(agent))
+                return res.json(handle_success({message : "Agent updated successfully!", agent : agent}))
             });
 
         });
