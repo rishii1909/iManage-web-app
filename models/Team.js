@@ -27,25 +27,25 @@ const TeamSchema = new Schema({
         type : Array,
         default : []
     },
-    monitors : { // team objects go here
-        type : Array,
-        default : []
-    },
+    monitors : {
+        type : Map,
+        default : {}
+    },  
     agents : { // team objects go here
         type : Array,
         default : []
     },
     user_devices : { // user object go here
         type : Map,
-        default : [],
+        default : {},
     },
     user_monitors : { // user object go here
         type : Map,
-        default : [],
+        default : {},
     },
     user_agents : { // user object go here
         type : Map,
-        default : [],
+        default : {},
     },
     assigned_devices : { // Object of users, non-nested. store actual per-user map in user object itself.
         type : Map,

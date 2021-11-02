@@ -19,7 +19,7 @@ const router = express.Router();
 const ssh = new NodeSSH()
 
 
-router.post('/create', async (req, res, next) => {
+router.post('/create/team', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
@@ -55,8 +55,7 @@ router.post('/create', async (req, res, next) => {
             // Fetch and store device info.
             const device = await DeviceModel.findById({ _id : device_id }).select('-_id creds');
             if(!device) return res.json(handle_error("Device not found."));
-            const monitor_info = { ...data, ...(Object.fromEntries(device.creds)) };
-            console.log(monitor_info);
+            const monitor_info = { ...data, ...(device.creds) };
 
             // Add code here to check for permissions. Skipped for now.
 
@@ -80,6 +79,176 @@ router.post('/create', async (req, res, next) => {
                     }
                     let update_team = {
                         [`monitors.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
+                        // [`user_monitors.${user_id}.${monitor._id}`]: true,
+                        $inc : { monitor_occupancy : 1 }
+                    }
+
+                    // Step 4 : Push all updates for team.
+                    await DeviceModel.updateOne(
+                        {
+                            _id: device_id,
+                        },
+                        update_device
+                    );
+                    await TeamModel.updateOne(
+                        {
+                            _id : team._id,
+                        },
+                        update_team
+                    );
+                    res.json(handle_success({
+                        message : "Monitor created successfully!",
+                        monitor : {...monitor.toObject(), ...remote_response}
+                    }))
+                } catch (err) {
+                    return res.json(handle_error(err.message));
+                }
+
+            }).catch((err) => {
+                return res.json(handle_error(err.message ? err.message : err))
+            })
+        
+        })
+        return;
+        // Alternate version saved for reference, reuse some of the code below to authenticate above.
+        User.findById({
+            _id : user_id
+        }).populate('team_id').populate('device_id').populate('agent_id').exec(async (err, user) => {
+        // }).populate('team_id').populate('device_id').populate('agent_id').exec(async (err, user) => {
+            if(!user || err) res.json(handle_error("Could not retrieve valid data from database."));
+
+            const team = user.team_id;
+            const device = user.device_id;
+            const agent = user.agent_id;
+
+            const caps = get_capacity(team.level);
+            const isRoot = is_root(team.root, user_id);
+
+            // Check for permissions first.
+            if(
+                !(
+                    isRoot || 
+                    (
+                        team.monitor_admins.has(user_id) && 
+                        team.monitor_admins.get(user_id) === true
+                    )
+                )
+            ){
+                return res.json(not_authenticated);
+            }
+
+            // Step 1 : Check for vacancy.
+            if(team.monitor_occupancy >= caps.monitors) return res.json(handle_error("Max monitors limit exceeded."));
+
+            // Step 2 : Create the monitor
+            try {
+                axios.post(
+                    `${agent.api_url}/api/${data.type}/mutate/create`, 
+                    data
+                ).then(response => {
+                    return res.json(response);
+                })
+                const monitor = await MonitorModel.create(data);
+                if(!monitor) return res.json(handle_error("Monitor could not be created."));
+
+                // Step 3 : Set update info
+                let update_device = {
+                    [`monitors.${monitor._id}`]: true,
+                }
+                let update_team = {
+                    [`monitors.${data.type}.${monitor._id}`]: true,
+                    [`user_monitors.${user_id}.${monitor._id}`]: true,
+                    $inc : { monitor_occupancy : 1 }
+                }
+                // Step 4 : Push all updates for team.
+                const device_update = await DeviceModel.updateOne(
+                    {
+                        _id: device_id,
+                    },
+                    update_device
+                );
+                const team_update = await TeamModel.updateOne(
+                    {
+                        _id : team._id,
+                    },
+                    update_team
+                );
+                res.json(handle_success({
+                    message : "Monitor created successfully!",
+                    monitor : monitor
+                }))
+            } catch (err) {
+                console.log(err);
+                return res.json(handle_error(err.message));
+            } 
+        });
+    } catch (err) {
+        res.json(handle_error(err.message));
+    }
+})
+
+router.post('/create/user', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let device_id = data.device_id;
+        let agent_id = data.agent_id;
+        let team_id = data.team_id;
+        const monitor_type = data.type;
+        if(found_invalid_ids([user_id, device_id, agent_id]).invalid){
+            return res.json(handle_error("The given User ID is not valid."));
+        }
+
+        if(!check_monitor_type(monitor_type)) return res.json(invalid_monitor_type());
+
+        AgentModel.findById({
+            _id : agent_id
+        })
+        .select('api_url team_id -_id')
+        .populate({
+            path : 'team_id',
+            select : 'monitor_occupancy level'
+        })
+        .exec(async (err, agent) => {
+            // Check if valid response returned.
+            const invalid = no_docs_or_error(agent, err);
+            if(invalid.is_true) return res.json(invalid.message);
+
+            // Populated declarations.
+            const team = agent.team_id;
+
+            // Check for vacancy.
+            if(team.monitor_occupancy >= get_capacity(team.level).monitors) return res.json(handle_error("Max monitors limit exceeded."));
+
+            // Fetch and store device info.
+            const device = await DeviceModel.findById({ _id : device_id }).select('-_id creds');
+            if(!device) return res.json(handle_error("Device not found."));
+            console.log(device.creds)
+            const monitor_info = { ...data, ...(device.creds) };
+            console.log(monitor_info);
+
+            // Add code here to check for permissions. Skipped for now.
+
+            // Call the remote agent API to create a new monitor.
+            axios.post(
+
+                `${agent.api_url}/api/${data.type}/mutate/create`, // API path
+                monitor_info // Data to be sent
+
+            ).then( async response => {
+                try {
+                    const remote_response = response.data;
+                    // If monitor could not be created.
+                    if(!remote_response.accomplished) return res.json(remote_response);
+                    const monitor = await MonitorModel.create({...monitor_info, ...{monitor_ref : remote_response.agent_id}});
+                    if(!monitor) return res.json(handle_error("Monitor was created sucessfully, but could not be added to the central database."));
+
+                    // Step 3 : Set update info
+                    let update_device = {
+                        [`monitors.${agent_id}.${monitor_type}.${monitor._id}`]: true,
+                    }
+                    let update_team = {
+                        [`user_monitors.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
                         // [`user_monitors.${user_id}.${monitor._id}`]: true,
                         $inc : { monitor_occupancy : 1 }
                     }
@@ -235,7 +404,16 @@ router.post('/dashboard/showcase', (req, res, next) => {
             }
         }
         // Looping through all agents.
-        const monitors = team.monitors.toObject();
+        
+        const user_monitors = isEmpty(team.user_monitors) ? {} : team.user_monitors;
+        const team_monitors = isEmpty(team.monitors) ? {} : team.monitors;
+        console.log(user_monitors, team_monitors);
+        const final_monitors_object = {
+            ...(isEmpty(team.user_monitors))
+        };
+        return res.json(handle_success(final_monitors_object));
+        if(isEmpty(final_monitors_object)) return res.json(handle_success(final_response_object));
+        
         if(!monitors.size) return res.json(handle_success({}))
         const fetch_urls = await AgentModel.find({
             _id : {
@@ -357,11 +535,10 @@ router.post('/update', (req, res, next) => {
                     if(err){
                         return res.json(handle_error("There was an error while updating your monitor."));
                     }
-                        return res.json(handle_success({
-                            message : "Monitor updated successfully.",
-                            response : resp,
-                        }));
-                
+                    return res.json(handle_success({
+                        message : "Monitor updated successfully.",
+                        response : resp,
+                    }));
                 }
             )
 
@@ -653,6 +830,10 @@ router.post('/enumerate', async (req, res, next) => {
 })
 
 module.exports = router;
+
+function isEmpty(obj) {
+    return Object.keys(obj).length === 0;
+}
 
 snmp_responses = {
     0 : "No SNMP support",
