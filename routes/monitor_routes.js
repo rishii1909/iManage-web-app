@@ -109,79 +109,6 @@ router.post('/create/team', async (req, res, next) => {
             })
         
         })
-        return;
-        // Alternate version saved for reference, reuse some of the code below to authenticate above.
-        User.findById({
-            _id : user_id
-        }).populate('team_id').populate('device_id').populate('agent_id').exec(async (err, user) => {
-        // }).populate('team_id').populate('device_id').populate('agent_id').exec(async (err, user) => {
-            if(!user || err) res.json(handle_error("Could not retrieve valid data from database."));
-
-            const team = user.team_id;
-            const device = user.device_id;
-            const agent = user.agent_id;
-
-            const caps = get_capacity(team.level);
-            const isRoot = is_root(team.root, user_id);
-
-            // Check for permissions first.
-            if(
-                !(
-                    isRoot || 
-                    (
-                        team.monitor_admins.has(user_id) && 
-                        team.monitor_admins.get(user_id) === true
-                    )
-                )
-            ){
-                return res.json(not_authenticated);
-            }
-
-            // Step 1 : Check for vacancy.
-            if(team.monitor_occupancy >= caps.monitors) return res.json(handle_error("Max monitors limit exceeded."));
-
-            // Step 2 : Create the monitor
-            try {
-                axios.post(
-                    `${agent.api_url}/api/${data.type}/mutate/create`, 
-                    data
-                ).then(response => {
-                    return res.json(response);
-                })
-                const monitor = await MonitorModel.create(data);
-                if(!monitor) return res.json(handle_error("Monitor could not be created."));
-
-                // Step 3 : Set update info
-                let update_device = {
-                    [`monitors.${monitor._id}`]: true,
-                }
-                let update_team = {
-                    [`monitors.${data.type}.${monitor._id}`]: true,
-                    [`user_monitors.${user_id}.${monitor._id}`]: true,
-                    $inc : { monitor_occupancy : 1 }
-                }
-                // Step 4 : Push all updates for team.
-                const device_update = await DeviceModel.updateOne(
-                    {
-                        _id: device_id,
-                    },
-                    update_device
-                );
-                const team_update = await TeamModel.updateOne(
-                    {
-                        _id : team._id,
-                    },
-                    update_team
-                );
-                res.json(handle_success({
-                    message : "Monitor created successfully!",
-                    monitor : monitor
-                }))
-            } catch (err) {
-                console.log(err);
-                return res.json(handle_error(err.message));
-            } 
-        });
     } catch (err) {
         res.json(handle_error(err.message));
     }
@@ -279,79 +206,6 @@ router.post('/create/user', async (req, res, next) => {
             })
         
         })
-        return;
-        // Alternate version saved for reference, reuse some of the code below to authenticate above.
-        User.findById({
-            _id : user_id
-        }).populate('team_id').populate('device_id').populate('agent_id').exec(async (err, user) => {
-        // }).populate('team_id').populate('device_id').populate('agent_id').exec(async (err, user) => {
-            if(!user || err) res.json(handle_error("Could not retrieve valid data from database."));
-
-            const team = user.team_id;
-            const device = user.device_id;
-            const agent = user.agent_id;
-
-            const caps = get_capacity(team.level);
-            const isRoot = is_root(team.root, user_id);
-
-            // Check for permissions first.
-            if(
-                !(
-                    isRoot || 
-                    (
-                        team.monitor_admins.has(user_id) && 
-                        team.monitor_admins.get(user_id) === true
-                    )
-                )
-            ){
-                return res.json(not_authenticated);
-            }
-
-            // Step 1 : Check for vacancy.
-            if(team.monitor_occupancy >= caps.monitors) return res.json(handle_error("Max monitors limit exceeded."));
-
-            // Step 2 : Create the monitor
-            try {
-                axios.post(
-                    `${agent.api_url}/api/${data.type}/mutate/create`, 
-                    data
-                ).then(response => {
-                    return res.json(response);
-                })
-                const monitor = await MonitorModel.create(data);
-                if(!monitor) return res.json(handle_error("Monitor could not be created."));
-
-                // Step 3 : Set update info
-                let update_device = {
-                    [`monitors.${monitor._id}`]: true,
-                }
-                let update_team = {
-                    [`monitors.${data.type}.${monitor._id}`]: true,
-                    [`user_monitors.${user_id}.${monitor._id}`]: true,
-                    $inc : { monitor_occupancy : 1 }
-                }
-                // Step 4 : Push all updates for team.
-                const device_update = await DeviceModel.updateOne(
-                    {
-                        _id: device_id,
-                    },
-                    update_device
-                );
-                const team_update = await TeamModel.updateOne(
-                    {
-                        _id : team._id,
-                    },
-                    update_team
-                );
-                res.json(handle_success({
-                    message : "Monitor created successfully!",
-                    monitor : monitor
-                }))
-            } catch (err) {
-                console.log(err);
-                return res.json(handle_error(err.message));
-            } 
-        });
     } catch (err) {
         res.json(handle_error(err.message));
     }
@@ -396,7 +250,12 @@ router.post('/dashboard/showcase', (req, res, next) => {
             },
 
             level_2 : {
-                
+                two_states : {
+
+                },
+                three_states : {
+
+                }
             },
 
             level_3 : {
@@ -404,18 +263,11 @@ router.post('/dashboard/showcase', (req, res, next) => {
             }
         }
         // Looping through all agents.
-        
-        const user_monitors = team.user_monitors;
         const team_monitors = team.monitors;
-        console.log(user_monitors, team_monitors);
-        const final_monitors_object = user_monitorsteam_monitors
-        return res.json(final_monitors_object);
-        if(isEmpty(final_monitors_object)) return res.json(handle_success(final_response_object));
-        
-        if(!monitors.size) return res.json(handle_success({}))
+        const user_monitors = team.user_monitors;
         const fetch_urls = await AgentModel.find({
             _id : {
-                $in : Array.from( monitors.keys() )
+                $in : Array.from( team_monitors.keys() ).concat(Array.from( user_monitors.keys() ))
             }
         }).select("api_url");
         monitors.forEach( async (monitor_type, agent_key) => {            
@@ -448,10 +300,11 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                     // Adding to level 1 - ends
 
                                     // Adding to level 2 - starts
-                                    if( final_response_object.level_2[rec._id.device] && final_response_object.level_2[rec._id.device][rec._id.monitor_status] ){
-                                        final_response_object.level_2[rec._id.device][rec._id.monitor_status] += rec.count;
+                                    const device_category = binary_monitors[monitor_type_key] == true ? "two_states" : "three_states";
+                                    if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
+                                        final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
                                     }else{
-                                        final_response_object.level_2[rec._id.device] = {
+                                        final_response_object.level_2[device_category][rec._id.device] = {
                                             [rec._id.monitor_status] : rec.count
                                         }
                                     }
