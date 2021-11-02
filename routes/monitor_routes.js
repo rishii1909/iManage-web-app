@@ -282,6 +282,8 @@ router.post('/dashboard/showcase', (req, res, next) => {
                     const target_agent = fetch_urls.find(obj => {
                         return obj._id == agent_key
                     });
+                    console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
+                    console.log(monitors);
                     await axios.post(
                         `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
                         {monitors}
@@ -289,12 +291,13 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         const resp = response.data;
                         test = resp;
                         if(resp.accomplished){
+                            console.log("API response : " ,resp.response)
                             for (const key in resp.response) {
                                 if (Object.hasOwnProperty.call(resp.response, key)) {
                                     const rec = resp.response[key];
                                     // Adding to level 1 - starts
                                     if(binary_monitors[monitor_type_key] === true){
-                                        final_response_object.level_1.two_states[rec._id.monitor_status] += rec.count
+                                        final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
                                     }else{
                                         final_response_object.level_1.three_states[rec._id.monitor_status] += rec.count
                                     }
