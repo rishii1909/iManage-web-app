@@ -355,11 +355,12 @@ router.post('/enumerate/team', async (req, res, next) => {
             // ){
             //     return res.json(not_authenticated);
             // }
-            if(team.devices.length == 0) return res.json(handle_success([]));
+            const team_devices = team.devices.filter(device => isValidObjectId(device));
+            if(team_devices.length == 0) return res.json(handle_success([]));
             DeviceModel.find(
                 {
                     _id : {
-                        $in : team.devices
+                        $in : team_devices
                     }
                 }).select("-creds").exec((err, docs) => {
                     if(err) return res.json(handle_generated_error(err))
@@ -389,12 +390,13 @@ router.post('/enumerate/user', async (req, res, next) => {
             if(err) return res.json(handle_generated_error(err));
             if(!team) return res.json(not_found("Team"));
             
-            if(team.user_devices.get(user_id).length == 0) return res.json(handle_success([]));
+            const team_devices = team.user_devices.get(user_id).filter(device => isValidObjectId(device));
+            if(team_devices.length == 0) return res.json(handle_success([]));
 
             DeviceModel.find(
                 {
                     _id : {
-                        $in : team.user_devices.get(user_id)
+                        $in : team_devices
                     }
                 }).select("-creds").exec((err, docs) => {
                     if(err) return res.json(handle_generated_error(err))

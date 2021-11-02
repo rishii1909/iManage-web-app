@@ -208,7 +208,10 @@ router.post('/update/team', async (req, res, next) => {
                 }
                 if(!agent) return res.json(not_found("Agent"))
 
-                return res.json(handle_success({message : "Agent updated successfully!", agent : agent}))
+                return res.json(handle_success({
+                    message : "Agent updated successfully!", 
+                    agent : agent
+                }))
             });
 
         });
@@ -267,7 +270,10 @@ router.post('/update/user', async (req, res, next) => {
                 }
                 if(!agent) return res.json(not_found("Agent"))
 
-                return res.json(handle_success(agent))
+                return res.json(handle_success({
+                    message : "Agent updated successfully!", 
+                    agent : agent
+                }))
             });
 
         });
@@ -302,11 +308,12 @@ router.post('/enumerate/team', async (req, res, next) => {
             // ){
             //     return res.json(not_authenticated);
             // }
-            if(team.agents.length == 0) return res.json(handle_success([]));
+            const team_agents = team.agents.filter(agent => isValidObjectId(agent));
+            if(team_agents == 0) return res.json(handle_success([]));
             AgentModel.find(
                 {
                     _id : {
-                        $in : team.agents
+                        $in : team_agents
                     }
                 }).select("-creds").exec((err, docs) => {
                     if(err) return res.json(handle_generated_error(err))
@@ -336,11 +343,12 @@ router.post('/enumerate/user', async (req, res, next) => {
             if(err) return res.json(handle_generated_error(err));
             if(!team) return res.json(not_found("Team"));
             
-            if(team.user_agents.get(user_id).length == 0) return res.json(handle_success([]));
+            const team_agents = user_agents.get(user_id).filter(agent => isValidObjectId(agent));
+            if(team_agents.length == 0) return res.json(handle_success([]));
             AgentModel.find(
                 {
                     _id : {
-                        $in : team.user_agents.get(user_id)
+                        $in : team_agents
                     }
                 }).select("-creds").exec((err, docs) => {
                     if(err) return res.json(handle_generated_error(err))
