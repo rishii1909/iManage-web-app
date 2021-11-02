@@ -31,7 +31,7 @@ router.post('/add', async (req, res, next) => {
             if (err) {
                 return res.json(handle_error(err))
             }
-            if(!doc) return res.json(handle_error("Monitor does not exist in Analytic Group."));
+            if(!doc) return res.json(not_found("Analytic group"));
 
             return res.json(handle_success(doc))
         });

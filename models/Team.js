@@ -25,15 +25,15 @@ const TeamSchema = new Schema({
     },
     devices : { // team objects go here
         type : Array,
-        default : {}
+        default : []
     },
     monitors : { // team objects go here
         type : Array,
-        default : {}
+        default : []
     },
     agents : { // team objects go here
         type : Array,
-        default : {}
+        default : []
     },
     user_devices : { // user object go here
         type : Map,

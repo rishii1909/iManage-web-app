@@ -23,7 +23,7 @@ const UserSchema = new Schema({
     },
     notification_templates : {
         type : Array,
-        default : {},
+        default : [],
     },
 
 

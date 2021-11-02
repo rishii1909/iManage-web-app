@@ -40,12 +40,11 @@ router.post('/create', async (req, res, next) => {
             if(!template){
                 return res.json(handle_error("There was error while creating the notification template."))
             }
-            console.log(typeof template._id.toString())
 
             UserModel.findOneAndUpdate({
                 _id: user_id,
             }, {
-                $push : {notification_templates : template._id.toString()},
+                $push : {[`notification_templates`] : template._id.toString()},
             }, (err, doc) => {
                 const invalid = no_docs_or_error(doc, err);
                 if(invalid.is_true){
@@ -93,19 +92,18 @@ router.post('/enumerate', async (req, res, next) => {
         _id : user_id
     }, (err, doc) => {
 
-        if(err || !doc) return res.json(not_found("User"));
-
-        const notifs = Array.from( doc.notification_templates.keys() );
-        console.log(notifs);
+        if(err) return res.json(handle_generated_error(err))
+        if(!doc) return res.json(not_found("User"))
+        console.log(doc.notification_templates)
         NotificationTemplateModel.find({ 
             _id: {
-                $in : notifs
+                $in : doc.notification_templates
             }
-        }, (err, docs) => {
-           const invalid = no_docs_or_error(docs, err);
-           if(invalid.is_true) return res.json(invalid.message)
+        }, (err, notifs) => {
+            if(err) return res.json(handle_generated_error(err))
+            if(!notifs) return res.json(not_found("Notification templates"))
 
-           return res.json(handle_success(docs))
+           return res.json(handle_success(notifs))
         });
 
 

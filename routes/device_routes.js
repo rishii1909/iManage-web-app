@@ -419,8 +419,6 @@ router.post('/enumerate/user', async (req, res, next) => {
     }
 })
 
-
-
 router.post('/enumerate/device', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
@@ -455,7 +453,6 @@ router.post('/enumerate/device', (req, res, next) => {
             ).select('-creds -username -team');
 
         }
-        let enumerate = {}; 
         if(data.show_monitors){
             let obtained_monitors = {};
             let obtained_monitors_array = [];
@@ -549,13 +546,12 @@ router.post('/delete/team', (req, res, next) => {
             _id: data.device_id
         }, (err) => {
             if(err){
-                return res.json(handle_error("There was an error while deleting your device."));
+                return res.json(handle_generated_error(err));
             }else{
-                team.devices.delete(device_id);
                 TeamModel.updateOne({
                     _id: team_id
                 }, {
-                    devices: team.devices,
+                    $pull : {devices : data.device_id},
                     $inc : { device_occupancy : -1 }
                 },
                 (err) => {
@@ -588,36 +584,13 @@ router.post('/delete/user', (req, res, next) => {
         _id : team_id
     }, (err, team) => {
         // Basic check.
-        const invalid = no_docs_or_error(team, err);
-        if(invalid.is_true){
-            console.log(err, team);
-            return res.json(invalid.message);
-        }
-        // Auth check.
-        const isRoot = is_root(team.root, user_id);
-        if(
-            !(
-                isRoot || 
-                (
-                    team.device_admins.has(user_id) && team.device_admins[user_id] === true
-                )
-            )
-        ){
-            console.log(team.user_devices, user_id)
-            return res.json(not_authenticated);
-        }
+        if(err) return res.json(handle_generated_error(err))
+        if(!team) return res.json(not_found("Team"))
 
-        if( !isRoot && !( team.user_devices.has(delete_user_id) && team.user_devices[delete_user_id].has(device_id) ) ){
-            console.log(team.user_devices, delete_user_id, device_id);
-            return res.json(handle_error("Device not found."));
-        }
-        // console.log(team.user_devices.get(delete_user_id), typeof team.user_devices.get(delete_user_id));
+    
+        if(!team.user_devices.has(user_id)) return res.json(handle_error("There are no devices in your account."))
+        if(!team.user_devices.get(user_id).includes(device_id)) return res.json(handle_error("The device you're trying to delete is not present in your account."))
         
-        try {
-            delete team.user_devices.get(delete_user_id)[device_id];
-        } catch (err) {
-            return res.json(handle_error("There was an error while deleting your device."))
-        }
         // console.log(team.user_devices.get(delete_user_id))
 
         //Delete the device
@@ -625,19 +598,16 @@ router.post('/delete/user', (req, res, next) => {
             _id: data.device_id
         }, (err) => {
             if(err){
-                return res.json(handle_error("There was an error while deleting your device."));
+                return res.json(handle_generated_error(err));
             }else{
-                TeamModel.updateOne({ 
+                TeamModel.updateOne({
                     _id: team_id
-                }, 
-                {
-                    [`user_devices.${delete_user_id}`]: team.user_devices[delete_user_id],
+                }, {
+                    $pull : {[`user_devices.${user_id}`] : device_id},
                     $inc : { device_occupancy : -1 }
                 },
                 (err) => {
-                   if(err){
-                       console.log(`Error: ` + err)
-                   }
+                   return res.json(handle_generated_error(err))
                 });
                 return res.json(handle_success("Device deleted successfully."));
             }
