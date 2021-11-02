@@ -355,7 +355,6 @@ router.post('/enumerate/team', async (req, res, next) => {
             // ){
             //     return res.json(not_authenticated);
             // }
-            console.log(team.devices.length)
             if(team.devices.length == 0) return res.json(handle_success([]));
             DeviceModel.find(
                 {
@@ -390,15 +389,7 @@ router.post('/enumerate/user', async (req, res, next) => {
             if(err) return res.json(handle_generated_error(err));
             if(!team) return res.json(not_found("Team"));
             
-            // if(
-            //     !(
-            //         is_root(team.root, user_id) || 
-            //         (team.monitoring_admins.has(user_id) && 
-            //         team.monitoring_admins.get(user_id) === true)
-            //     )
-            // ){
-            //     return res.json(not_authenticated);
-            // }
+            if(team.user_devices.get(user_id).length == 0) return res.json(handle_success([]));
 
             DeviceModel.find(
                 {

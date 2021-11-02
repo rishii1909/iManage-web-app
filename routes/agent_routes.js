@@ -302,7 +302,6 @@ router.post('/enumerate/team', async (req, res, next) => {
             // ){
             //     return res.json(not_authenticated);
             // }
-            console.log(team.agents.length)
             if(team.agents.length == 0) return res.json(handle_success([]));
             AgentModel.find(
                 {
@@ -337,6 +336,7 @@ router.post('/enumerate/user', async (req, res, next) => {
             if(err) return res.json(handle_generated_error(err));
             if(!team) return res.json(not_found("Team"));
             
+            if(team.user_agents.get(user_id).length == 0) return res.json(handle_success([]));
             AgentModel.find(
                 {
                     _id : {
