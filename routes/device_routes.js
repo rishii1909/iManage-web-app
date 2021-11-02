@@ -391,7 +391,7 @@ router.post('/enumerate/user', async (req, res, next) => {
             if(!team) return res.json(not_found("Team"));
             
             const team_devices = (team.user_devices.get(user_id) && team.user_devices.get(user_id).length) ? team.user_devices.get(user_id).filter(device => isValidObjectId(device)) : team.user_devices.get(user_id);
-            if(team_devices.length == 0) return res.json(handle_success([]));
+            if(!(team_devices && team_devices.length > 0)) return res.json(handle_success([]));
 
             DeviceModel.find(
                 {

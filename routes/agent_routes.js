@@ -344,7 +344,7 @@ router.post('/enumerate/user', async (req, res, next) => {
             if(!team) return res.json(not_found("Team"));
             
             const team_agents = (team.user_agents.get(user_id) && team.user_agents.get(user_id).length) ? team.user_agents.get(user_id).filter(agent => isValidObjectId(agent)) : team.user_agents.get(user_id);
-            if(team_agents.length == 0) return res.json(handle_success([]));
+            if(!(team_agents && team_agents.length > 0)) return res.json(handle_success([]));
             AgentModel.find(
                 {
                     _id : {
