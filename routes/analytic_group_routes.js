@@ -8,21 +8,21 @@ const { isValidObjectId } = require('mongoose');
 const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, validate_response, not_found } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
-const DeviceModel = require('../models/Device');
-const DeviceGroupModel = require('../models/DeviceGroup');
+const MonitorModel = require('../models/Monitor');
+const MonitorGroupModel = require('../models/AnalyticGroup');
 const router = express.Router();
-const verbose = "Device Group"
+const verbose = "Analytic Group"
 
 router.post('/add', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
-        DeviceGroupModel.findOneAndUpdate({
-            _id: device_group_id,
+        let analytic_group_id = data.analytic_group_id;
+        let monitor_id = data.monitor_id;
+        MonitorGroupModel.findOneAndUpdate({
+            _id: analytic_group_id,
         }, {
-            [`devices.${device_id}`]: true,
+            [`monitors.${monitor_id}`]: true,
         },
         { 
             new : true 
@@ -31,7 +31,7 @@ router.post('/add', async (req, res, next) => {
             if (err) {
                 return res.json(handle_error(err))
             }
-            if(!doc) return res.json(not_found("Device Group"));
+            if(!doc) return res.json(handle_error("Monitor does not exist in Analytic Group."));
 
             return res.json(handle_success(doc))
         });
@@ -45,13 +45,14 @@ router.post('/remove', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
-        DeviceGroupModel.findOneAndUpdate({
-            _id: device_group_id,
+        let analytic_group_id = data.analytic_group_id;
+        let monitor_id = data.monitor_id;
+        MonitorGroupModel.findOneAndUpdate({
+            _id: analytic_group_id,
+            [`monitors.${monitor_id}`]: true || false,
         }, {
             $unset : {
-                [`devices.${device_id}`] : 1
+                [`monitors.${monitor_id}`] : 1
             },
         },
         { 
@@ -61,7 +62,7 @@ router.post('/remove', async (req, res, next) => {
             if (err) {
                 return res.json(handle_error(err))
             }
-            if(!doc) return res.json(not_found("Device Group"));
+            if(!doc) return res.json(handle_error("Monitor does not exist in Analytic Group."));
 
             return res.json(handle_success(doc))
         });
@@ -74,12 +75,13 @@ router.post('/disable', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
-        DeviceGroupModel.findOneAndUpdate({
-            _id: device_group_id,
+        let analytic_group_id = data.analytic_group_id;
+        let monitor_id = data.monitor_id;
+        MonitorGroupModel.findOneAndUpdate({
+            _id: analytic_group_id,
+            [`monitors.${monitor_id}`]: true || false,
         }, {
-            [`devices.${device_id}`]: false,
+            [`monitors.${monitor_id}`]: false,
         },
         { 
             new : true 
@@ -88,7 +90,7 @@ router.post('/disable', async (req, res, next) => {
             if (err) {
                 return res.json(handle_error(err))
             }
-            if(!doc) return res.json(not_found("Device Group"));
+            if(!doc) return res.json(handle_error("Monitor does not exist in Analytic Group."));
 
             return res.json(handle_success(doc))
         });
@@ -101,12 +103,13 @@ router.post('/enable', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
-        DeviceGroupModel.findOneAndUpdate({
-            _id: device_group_id,
+        let analytic_group_id = data.analytic_group_id;
+        let monitor_id = data.monitor_id;
+        MonitorGroupModel.findOneAndUpdate({
+            _id: analytic_group_id,
+            [`monitors.${monitor_id}`]: true || false,
         }, {
-            [`devices.${device_id}`]: true,
+            [`monitors.${monitor_id}`]: true,
         },
         { 
             new : true 
@@ -115,7 +118,7 @@ router.post('/enable', async (req, res, next) => {
             if (err) {
                 return res.json(handle_error(err))
             }
-            if(!doc) return res.json(not_found("Device Group"));
+            if(!doc) return res.json(handle_error("Monitor does not exist in Analytic Group."));
 
             return res.json(handle_success(doc))
         });
@@ -128,18 +131,18 @@ router.post('/enumerate', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
-        DeviceGroupModel.findOne({
-            _id: device_group_id,
-        }).then((device_group) => {
-            if (!device_group) {
+        let analytic_group_id = data.analytic_group_id;
+        let monitor_id = data.monitor_id;
+        MonitorGroupModel.findOne({
+            _id: analytic_group_id,
+        }).then((analytic_group) => {
+            if (!analytic_group) {
                 return res.json(not_found(verbose));
             } else{
-                const devices = Array.from( device_group.devices.keys() )
-                DeviceModel.find({ 
-                    _id: { $in : devices}
-                }).select("name host type").exec((err, docs) => {
+                const monitors = Array.from( analytic_group.monitors.keys() )
+                MonitorModel.find({ 
+                    _id: { $in : monitors}
+                }).select("label type monitor_ref").exec((err, docs) => {
                     if(err){
                         return res.json(handle_error(err));
                     } else{
@@ -173,30 +176,30 @@ router.post('/create', async (req, res, next) => {
                     !(
                         isRoot || 
                         (
-                            team.device_admins.has(user_id) && 
-                            team.device_admins.get(user_id) === true
+                            team.monitor_admins.has(user_id) && 
+                            team.monitor_admins.get(user_id) === true
                         )
                     )
                 ){
                     return res.json(not_authenticated);
                 }   
                 try {
-                    const device_group = await DeviceGroupModel.create(data);
-                    if(!device_group) return res.json(handle_error("Device Group could not be created."));  
+                    const analytic_group = await MonitorGroupModel.create(data);
+                    if(!analytic_group) return res.json(handle_error("Analytic Group could not be created."));  
                     // Step 3 : Set update info
-                    let update_device_group = {
-                        [`device_groups.${device_group._id}`]: true,
+                    let update_analytic_group = {
+                        [`analytic_groups.${analytic_group._id}`]: true,
                     }
                     // Step 4 : Push all updates for team.
                     const team_update = await TeamModel.updateOne(
                         {
                             _id : team._id,
                         },
-                        update_device_group
+                        update_analytic_group
                     );
                     res.json(handle_success({
-                        message : "Device Group created successfully!",
-                        device_group : device_group
+                        message : "Analytic Group created successfully!",
+                        analytic_group : analytic_group
                     }))
                 } catch (err) {
                      console.log(err);
@@ -216,9 +219,9 @@ router.post('/update', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
-    const device_group_id = data.device_group_id
+    const analytic_group_id = data.analytic_group_id
 
-    const ic = found_invalid_ids([user_id, team_id, device_group_id], res);
+    const ic = found_invalid_ids([user_id, team_id, analytic_group_id], res);
     if(ic.invalid) return res.json(ic.message);
     TeamModel.findById({
         _id : team_id
@@ -230,25 +233,25 @@ router.post('/update', (req, res, next) => {
             !(
                 isRoot || 
                 (
-                    team.device_admins.has(user_id) && 
-                    team.device_admins.get(user_id) === true
+                    team.monitor_admins.has(user_id) && 
+                    team.monitor_admins.get(user_id) === true
                 )
             )
         ){
             return res.json(not_authenticated);
         }
-            //Update the Device group
-            DeviceGroupModel.findOneAndUpdate({
-                _id: device_group_id,
+            //Update the Monitor group
+            MonitorGroupModel.findOneAndUpdate({
+                _id: analytic_group_id,
             }, 
             data, 
-            (err, device_group) => {
-                const invalid = no_docs_or_error(device_group, err);
+            (err, analytic_group) => {
+                const invalid = no_docs_or_error(analytic_group, err);
                 if(invalid.is_true) return res.json(invalid.message);
 
                 res.json(handle_success({
-                    message : "Device group updated successfully!",
-                    device_group : device_group
+                    message : "Analytic group updated successfully!",
+                    analytic_group : analytic_group
                 }));
             });
             
@@ -261,8 +264,8 @@ router.post('/delete', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
-    const device_group_id = data.device_group_id
-    if(!(user_id || team_id || device_group_id)){
+    const analytic_group_id = data.analytic_group_id
+    if(!(user_id || team_id || analytic_group_id)){
         return res.json(handle_error("Insufficient parameters."));
     }
 
@@ -283,31 +286,31 @@ router.post('/delete', (req, res, next) => {
             !(
                 isRoot || 
                 (
-                    team.device_admins.has(user_id) && 
-                    team.device_admins.get(user_id) === true
+                    team.monitor_admins.has(user_id) && 
+                    team.monitor_admins.get(user_id) === true
                 )
             )
         ){
             return res.json(not_authenticated);
         }
         
-            //Delete the Device group
-            DeviceGroupModel.findOneAndDelete({ 
-                _id: device_group_id
+            //Delete the Monitor group
+            MonitorGroupModel.findOneAndDelete({ 
+                _id: analytic_group_id
             }, (err, doc) => {
                const invalid = no_docs_or_error(doc, err);
                if(invalid.is_true) return res.json(invalid.message);
 
-                team.device_groups.delete(device_group_id);
+                team.analytic_groups.delete(analytic_group_id);
                 TeamModel.findOneAndUpdate({
                     _id: team_id,
                 }, {
-                    device_groups: team.device_groups,
+                    analytic_groups: team.analytic_groups,
                 }, (err, doc) => {
                     const invalid = no_docs_or_error(doc, err);
                     if(invalid.is_true) return res.json(invalid.message);
 
-                    return res.json(handle_success("Device Group deleted successfully!"))
+                    return res.json(handle_success("Analytic Group deleted successfully!"))
                 });
             });
     });

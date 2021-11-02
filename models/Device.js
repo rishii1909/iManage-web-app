@@ -37,12 +37,7 @@ const DeviceSchema = new Schema({
     monitors : {
         type : Map,
         default : {}
-    },
-    agent : {
-        type : Schema.Types.ObjectId,
-        ref : 'Agent'
-    }
-    
+    },    
 }, { versionKey: false })
 
 

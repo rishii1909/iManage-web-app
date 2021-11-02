@@ -3,12 +3,12 @@ const bcrypt = require('bcrypt');
 
 const Schema = mongoose.Schema;
 
-const DeviceGroupSchema = new Schema({
+const MonitorGroupSchema = new Schema({
     name : {
         type : String,
         required : true,
     },
-    devices : {
+    monitors : {
         type : Map,
         required : true,
         default : {},
@@ -17,6 +17,6 @@ const DeviceGroupSchema = new Schema({
 
 
 
-const DeviceGroupModel = mongoose.model('DeviceGroup', DeviceGroupSchema);
+const MonitorGroupModel = mongoose.model('MonitorGroup', MonitorGroupSchema);
 
-module.exports = DeviceGroupModel;
+module.exports = MonitorGroupModel;

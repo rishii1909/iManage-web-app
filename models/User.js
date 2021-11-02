@@ -22,7 +22,7 @@ const UserSchema = new Schema({
         ref : 'Team',
     },
     notification_templates : {
-        type : Map,
+        type : Array,
         default : {},
     },
 

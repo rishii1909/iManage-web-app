@@ -27,7 +27,7 @@ router.post('/create', async (req, res, next) => {
         let agent_id = data.agent_id;
         let team_id = data.team_id;
         const monitor_type = data.type;
-        if(found_invalid_ids([user_id, device_id, agent_id])){
+        if(found_invalid_ids([user_id, device_id, agent_id]).invalid){
             return res.json(handle_error("The given User ID is not valid."));
         }
 
@@ -105,6 +105,8 @@ router.post('/create', async (req, res, next) => {
                     return res.json(handle_error(err.message));
                 }
 
+            }).catch((err) => {
+                return res.json(handle_error(err.message ? err.message : err))
             })
         
         })
@@ -261,7 +263,6 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             for (const key in resp.response) {
                                 if (Object.hasOwnProperty.call(resp.response, key)) {
                                     const rec = resp.response[key];
-                                    console.log(rec);
                                     // Adding to level 1 - starts
                                     if(binary_monitors[monitor_type_key] === true){
                                         final_response_object.level_1.two_states[rec._id.monitor_status] += rec.count
@@ -279,18 +280,38 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                         }
                                     }
                                     // Adding to level 2 - ends
+
+                                    // Adding to level 3 - starts
+                                    if( final_response_object.level_3[rec._id.device] && final_response_object.level_3[rec._id.device][rec._id.monitor_ref] ){
+                                        final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
+                                            label : rec._id.label,
+                                            monitor_status : rec._id.monitor_status
+                                        };
+                                    }else{
+                                        final_response_object.level_3[rec._id.device] = {
+                                            [rec._id.monitor_ref] : {
+                                                label : rec._id.label,
+                                                monitor_status : rec._id.monitor_status
+                                            }
+                                        }
+                                    }
+                                    // final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
+                                    //     label : rec._id.label,
+                                    //     monitor_status : rec._id.monitor_status
+                                    // };
+                                    // Adding to level 3 - ends
                                 }
                             }
                         }
-                    }).catch((error) => {
-                        console.log(error.message);
+                    }).catch((err) => {
+                        return res.json(handle_error(err.message ? err.message : err))
                     })
 
                     // Add check for enabled/disabled monitors here later.
                 }
             }
             // return res.json({binaryObject, ternaryObject});
-            return res.json(final_response_object);
+            return res.json(handle_success(final_response_object));
         })
     });
 })
@@ -352,7 +373,7 @@ router.post('/enumerate/team', (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     console.log(user_id, team_id);
-    if( found_invalid_ids([user_id, team_id]) ){
+    if( found_invalid_ids([user_id, team_id]).invalid ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
     TeamModel.findById({ 
@@ -392,7 +413,7 @@ router.post('/enumerate/user', (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     // console.log("user_id : ", user_id,"team_id : ", team_id);
-    if( found_invalid_ids([user_id, team_id]) ){
+    if( found_invalid_ids([user_id, team_id]).invalid ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
 
@@ -423,7 +444,7 @@ router.post('/enumerate/monitor', (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     const monitor_id = data.monitor_id;
-    if( found_invalid_ids([user_id, team_id, monitor_id]) ){
+    if( found_invalid_ids([user_id, team_id, monitor_id]).invalid ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
 
@@ -475,10 +496,11 @@ router.post('/enumerate/monitor', (req, res, next) => {
                         return res.json(handle_error(err.message));
                     }
                 
+                }).catch((err) => {
+                    return res.json(handle_error(err.message ? err.message : err))
                 })
             })
         }else{
-            console.log(isRoot)
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }
 
@@ -494,7 +516,7 @@ router.post('/delete/team', (req, res, next) => {
         return res.json("Insufficient parameters.");
     }
 
-    if(found_invalid_ids([user_id, team_id, monitor_id])){
+    if(found_invalid_ids([user_id, team_id, monitor_id]).invalid){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
     TeamModel.findById({
@@ -553,7 +575,7 @@ router.post('/delete/user', (req, res, next) => {
         return res.json("Insufficient parameters.");
     }
 
-    if(found_invalid_ids([user_id, team_id, monitor_id])){
+    if(found_invalid_ids([user_id, team_id, monitor_id]).invalid){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
     TeamModel.findById({

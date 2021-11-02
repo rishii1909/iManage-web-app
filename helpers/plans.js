@@ -71,6 +71,17 @@ exports.handle_error = (error_message_or_object) => {
   }
 }
 
+exports.handle_generated_error = (generated_error_object) => {
+  return {
+      accomplished : false,
+      response : generated_error_object.message ? generated_error_object.message : generated_error_object
+  }
+}
+
+exports.maximum_limit_error = (object) => {
+  return this.handle_error(`Your Team has reached it's maximum limit for ${object}s. Upgrade your plan to keep adding new ${object}s!`)
+}
+
 exports.handle_success = (success_message_or_object) => {
     return {
         accomplished : true,

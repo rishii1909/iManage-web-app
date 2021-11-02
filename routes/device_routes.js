@@ -5,8 +5,8 @@ const {NodeSSH} = require('node-ssh')
 const DeviceModel = require('../models/Device');
 const User = require('../models/User');
 const mongoose = require('mongoose');
-const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated } = require('../helpers/plans');
+const { isValidObjectId, Mongoose } = require('mongoose');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, not_found, handle_generated_error, maximum_limit_error } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
 const MonitorModel = require('../models/Monitor');
@@ -14,40 +14,37 @@ const router = express.Router();
 
 const ssh = new NodeSSH()
 
-
+const verbose = "device"
 router.post('/create/team', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        if(found_invalid_ids([user_id])){
-            res.json({error : "The given User ID is not valid."});
+        let team_id = data.team_id;
+        if(found_invalid_ids([user_id, team_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."));
             return;
         }
-        // user_id = await mongoose.Types.ObjectId(user_id);
-        // console.log(user.team.level);
-        User.findById({ 
-            _id : user_id
-        }).populate('team_id').exec(async (err, user) => {
-            if(!user || err) res.json(handle_error("Could not retrieve valid data from database."));
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            
+            const caps = get_capacity(team.level)
+            if(team.device_occupancy >= caps.devices) return res.json(maximum_limit_error(verbose))
 
-            const team = user.team_id;
-            const caps = get_capacity(team.level);
-            const isRoot = is_root(team.root, user_id);
+
             if(
                 !(
-                    isRoot || 
-                    (team.device_admins.has(user_id) && 
-                    team.device_admins[user_id] === true)
+                    is_root(team.root, user_id) || 
+                    (team.monitoring_admins.has(user_id) && 
+                    team.monitoring_admins.get(user_id) === true)
                 )
             ){
-                console.log(isRoot, user_id, team.root)
                 return res.json(not_authenticated);
             }
 
-            // Step 1 : Check for vacancy.
-            if(team.devices.size >= caps.devices) return res.json(handle_error("Max devices limit exceeded."));
 
-            // Step 2 : Check if the given remote device is accessible.
             const creds = {
                 host : data.host,
                 username : data.username,
@@ -55,30 +52,40 @@ router.post('/create/team', async (req, res, next) => {
                 ...(data.privateKey) && { privateKey : data.privateKey },
                 ...(data.passphrase) && { passphrase : data.passphrase },
             }
+
             if(!data.private){
                 try {
                     let connection = await ssh.connect(creds);
                     if(!connection.isConnected){
                         return res.json(handle_error({
                             error : null,
-                            message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
+                            message : "Could not confirm remote connectivity, are you sure you entered valid credentials?",
                         }));
                     }
                 } catch (err) {
-                    console.log('here');
                     return res.json(handle_error({
                         error : err,
-                        message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
+                        message : "Could not confirm remote connectivity, are you sure you entered valid credentials?",
                     }));
                 }
             }
-            // Step 3 : Create the device
-            data.creds = creds;
+
+            const final_device_object = {
+                name : data.name ,
+                team_id : data.team_id ,
+                snmp : data.snmp ,
+                type : data.type ,
+                username : data.username ,
+                host : data.host ,
+                creds : creds ,
+                // monitors : data.monitors ,
+            }
+
             try {
-                const device = await DeviceModel.create(data);
+                const device = await DeviceModel.create(final_device_object);
                 // Step 4 : Set update info
                 let update_data = {
-                    [`devices.${device._id}`]: true,
+                    $push : { [`devices`] : device._id.toString() },
                     $inc : { device_occupancy : 1 }
                 }
                 // Step 5 : Push all updates for team.
@@ -88,49 +95,45 @@ router.post('/create/team', async (req, res, next) => {
                 update_data
                 , (err, doc) => {
                     if (err) {
-                        console.log(handle_error("Couldn't update Team"));
+                        return res.json(handle_generated_error(err));
                     }
+                    if(!doc) return res.json(not_found("Team"));
+
+                    res.json(handle_success({
+                        message : "Device created successfully!",
+                        device : device
+                    }))
                 });
-                res.json(handle_success({
-                    message : "Device created successfully!",
-                    device : device
-                }))
             } catch (err) {
-                console.log(err);
-                console.log("Error here");
-                return res.json(handle_error(err.message));
-            } 
+                return res.json(handle_generated_error(err));
+            }
+
         });
-        return;
+        
     } catch (err) {
         console.log(err);
-        res.json({error : err});
+        res.json(handle_generated_error(err));
     }
 })
-// Done!
+
 router.post('/create/user', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        if(found_invalid_ids([user_id])){
-            res.json({error : "The given User ID is not valid."});
+        let team_id = data.team_id;
+        if(found_invalid_ids([user_id, team_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."));
             return;
         }
-        // user_id = await mongoose.Types.ObjectId(user_id);
-        // console.log(user.team.level);
-        User.findById({ 
-            _id : user_id
-        }).populate('team_id').exec(async (err, user) => {
-            if(!user || err) res.json(no_docs_or_error);
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            
+            const caps = get_capacity(team.level)
+            if(team.device_occupancy >= caps.devices) return res.json(maximum_limit_error(verbose))
 
-            const team = user.team_id;
-            const caps = get_capacity(team.level);
-            const isRoot = is_root(team.root, user_id);
-
-            // Step 1 : Check for vacancy.
-            if(team.device_occupancy >= caps.devices) return res.json(handle_error("Max devices limit exceeded."));
-
-            // Step 2 : Check if the given remote device is accessible.
             const creds = {
                 host : data.host,
                 username : data.username,
@@ -138,251 +141,285 @@ router.post('/create/user', async (req, res, next) => {
                 ...(data.privateKey) && { privateKey : data.privateKey },
                 ...(data.passphrase) && { passphrase : data.passphrase },
             }
+
             if(!data.private){
                 try {
                     let connection = await ssh.connect(creds);
                     if(!connection.isConnected){
                         return res.json(handle_error({
                             error : null,
-                            message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
+                            message : "Could not confirm remote connectivity, are you sure you entered valid credentials?",
                         }));
                     }
                 } catch (err) {
                     return res.json(handle_error({
                         error : err,
-                        message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
+                        message : "Could not confirm remote connectivity, are you sure you entered valid credentials?",
                     }));
                 }
             }
-            // Step 3 : Create the device
-            data.creds = creds;
+
+            const final_device_object = {
+                name : data.name ,
+                team_id : data.team_id ,
+                snmp : data.snmp ,
+                type : data.type ,
+                username : data.username ,
+                host : data.host ,
+                creds : creds ,
+                // monitors : data.monitors ,
+            }
+
             try {
-                const device = await DeviceModel.create(data);
-                // Step 4 : Update user_devices array for the current team.
-                var updateInfo = {
+                const device = await DeviceModel.create(final_device_object);
+                // Step 4 : Set update info
+                let update_data = {
+                    $push : { [`user_devices.${user_id}`] : device._id.toString() },
                     $inc : { device_occupancy : 1 }
-                };
-                if(!team.user_devices.has(user_id) || !team.user_devices.get(user_id)){
-                    updateInfo = { 
-                        [`user_devices.${user_id}`] : {
-                            [`${device._id}`] : true
-                        }
-                    }
-                }else{
-                    updateInfo = {
-                        [`user_devices.${user_id}.${device._id}`]: true
-                    }
                 }
+                // Step 5 : Push all updates for team.
                 TeamModel.updateOne({
                     _id: team._id,
-                }, 
-                updateInfo,
-                (err, doc) => {
+                },
+                update_data
+                , (err, doc) => {
                     if (err) {
-                        console.log(user_id, device._id), 
-                        console.log(err, handle_error("Couldn't update Team"));
+                        return res.json(handle_generated_error(err));
                     }
+                    if(!doc) return res.json(not_found("Team"));
+
                 });
                 res.json(handle_success({
                     message : "Device created successfully!",
                     device : device
                 }))
             } catch (err) {
-                return res.json(handle_error(err.message));
-            } 
-        });
+                return res.json(handle_generated_error(err));
+            }
 
-        // res.json({data : data})
-        return;
+        });
+        
     } catch (err) {
         console.log(err);
-        res.json({error : err});
+        res.json(handle_generated_error(err));
     }
 })
 
-router.post('/update/team', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    const device_id = data.device_id;
-    data._id = device_id;
-    if(!(user_id || team_id || device_id)){
-        return res.json("Insufficient parameters.");
-    }
-    if(!(isValidObjectId(user_id) || isValidObjectId(device_id) || isValidObjectId(team_id))){
-        res.json({error : "The given ID is not valid."});
-        return;
-    }
-    TeamModel.findById({
-        _id : team_id
-    }, (err, team) => {
-        if(!team || err){
-            return res.json(handle_error("Could not retrieve valid data from database."));
+router.post('/update/team', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let device_id = data.device_id;
+        if(found_invalid_ids([user_id, team_id, device_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."))
         }
-        let isRoot = is_root(team.root, user_id);
-        console.log(team.devices);
-        if( 
-            //Device exists in the team
-            !(
-                team.devices.has(device_id) && 
-                (
-                    // if current user is root user.
-                    isRoot || 
-                    // if current user is a device admin.
-                    team.device_admins.has(user_id) || 
-                    // if selected device has been assigned to the current user.
-                    (team.assigned_devices.has(user_id) && team.assigned_devices.get(user_id)[device_id] === true)
-                )
-            )
-        ){
-            return res.json(not_authenticated);
-        }
-            //Update the device
-            DeviceModel.findByIdAndUpdate({ 
-                _id: device_id
-            }, 
-            data, {new : true})
-            .select('-creds')
-            .exec(
-            (err,resp) => {
-                if(err){
-                    return res.json(handle_error("There was an error while updating your device."));
-                }
-                    return res.json(handle_success({
-                        message : "Device updated successfully.",
-                        response : resp,
-                    }));
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
             
+            if(!team.devices.includes(device_id)) return res.json(handle_error("Device not found in your Team."))
+            if(
+                !(
+                    is_root(team.root, user_id) || 
+                    (team.monitoring_admins.has(user_id) && 
+                    team.monitoring_admins.get(user_id) === true)
+                )
+            ){
+                return res.json(not_authenticated);
+            }
+
+            const update_device_object = {
+                ...(data.name) && {name : data.name},
+                ...(data.team_id) && {team_id : data.team_id},
+                ...(data.snmp) && {snmp : data.snmp},
+                ...(data.type) && {type : data.type},
+                
+            }
+
+            // const creds = {
+            //     ...(data.username) && {username : data.username},
+            //     ...(data.host) && {host : data.host},
+            //     ...(data.password) && { password : data.password },
+            //     ...(data.privateKey) && { privateKey : data.privateKey },
+            //     ...(data.passphrase) && { passphrase : data.passphrase },
+            // }
+            // if(creds.keys(obj).length !== 0){
+            //     update_device_object.creds = creds;
+            // }
+
+            DeviceModel.findOneAndUpdate({
+                _id: device_id,
+            }, update_device_object, 
+            {new : true},
+            (err, device) => {
+                if (err) {
+                    return res.json(handle_generated_error(err))
+                }
+                if(!device) return res.json(not_found("Device"))
+
+                return res.json(handle_success(device))
             });
 
-    });
-})
-router.post('/update/user', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    const device_id = data.device_id;
-    data._id = device_id;
-    if(!(user_id || team_id || device_id)){
-        return res.json("Insufficient parameters.");
-    }
-    if(!(isValidObjectId(user_id) || isValidObjectId(device_id) || isValidObjectId(team_id))){
-        res.json({error : "The given ID is not valid."});
-        return;
-    }
-    TeamModel.findById({
-        _id : team_id
-    }, (err, team) => {
-        if(!team || err){
-            return res.json(handle_error("Could not retrieve valid data from database."));
-        }
-        let isRoot = is_root(team.root, user_id);
-        if( 
-            //Device exists in the team
-            !(
-                (
-                    // if current user is root user.
-                    isRoot || 
-                    // if current user owns the device.
-                    team.user_devices.has(user_id) && team.user_devices.get(user_id)[device_id] === true
-                    
-                )
-            )
-        ){
-            return res.json(not_authenticated);
-        }
-            //Update the device
-            DeviceModel.findByIdAndUpdate({ 
-                _id: device_id
-            }, 
-            data, {new : true})
-            .select('-creds')
-            .exec(
-            (err,resp) => {
-                if(err){
-                    return res.json(handle_error("There was an error while updating your device."));
-                }
-                    return res.json(handle_success({
-                        message : "Device updated successfully.",
-                        response : resp,
-                    }));
-            
-            });
-
-    });
-})
-
-router.post('/enumerate/team', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    console.log(user_id, team_id);
-    if( found_invalid_ids([user_id, team_id]).invalid ){
-        return res.json(handle_error("Invalid parameter [id]s."))
-    }
-
-    TeamModel.findById({ 
-        _id : team_id
-    }, async (err, team) => {
-
-        if(!team || err){
-            res.json(handle_error("Your team could not be identified."));
-        }
-    
-        let isRoot = is_root(team.root, user_id);
-
-        if(
-            // team.devices.has(device_id) && 
-            (   
-                isRoot || 
-                ( team.device_admins.has(user_id) && team.device_admins[user_id] === true )
-            )
-        ){
-            // Enumerate the device
-            let devices_array = Array.from( team.devices.keys() );
-            return res.json(handle_success(
-                await DeviceModel.find({
-                    _id : {
-                        $in : devices_array
-                    }
-                })
-            ));
-        }else{
-            return res.json(not_authenticated);
-        }
-
-    });
-})
-router.post('/enumerate/user', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    // console.log("user_id : ", user_id,"team_id : ", team_id);
-    if( found_invalid_ids([user_id, team_id]).invalid ){
-        return res.json(handle_error("Invalid parameter [id]s."))
-    }
-
-    TeamModel.findById({ 
-        _id : team_id
-    }, async (err, team) => {
-        // console.log(team.user_devices);
-        if(!team || err){
-            res.json(handle_error("Your team could not be identified."));
-        }
-        const user_devices_object = team.user_devices.get(user_id);
-        if(!user_devices_object) return res.json(handle_error("You haven't created any devices yet."));
-        const devices_array = Object.keys(team.user_devices.get(user_id));
+        });
         
-        return res.json(handle_success(
-            await DeviceModel.find({
-                _id : {
-                    $in : devices_array
-                }
-            })
-        ));
-
-    });
+    } catch (err) {
+        console.log(err);
+        res.json(handle_generated_error(err));
+    }
 })
+
+router.post('/update/user', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let device_id = data.device_id;
+        if(found_invalid_ids([user_id, team_id, device_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."))
+        }
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            if(!(
+                team.user_devices.has(user_id) && team.user_devices.get(user_id).includes(device_id)
+            )) return res.json(handle_error("Device not found in your account."))
+
+
+            const update_device_object = {
+                ...(data.name) && {name : data.name}, 
+                ...(data.team_id) && {team_id : data.team_id},
+                ...(data.snmp) && {snmp : data.snmp},
+                ...(data.type) && {type : data.type},
+                
+            }
+
+            // const creds = {
+            //     ...(data.username) && {username : data.username},
+            //     ...(data.host) && {host : data.host},
+            //     ...(data.password) && { password : data.password },
+            //     ...(data.privateKey) && { privateKey : data.privateKey },
+            //     ...(data.passphrase) && { passphrase : data.passphrase },
+            // }
+            // if(creds.keys(obj).length !== 0){
+            //     update_device_object.creds = creds;
+            // }
+
+            DeviceModel.findOneAndUpdate({
+                _id: device_id,
+            }, update_device_object, 
+            {new : true},
+            (err, device) => {
+                if (err) {
+                    return res.json(handle_generated_error(err))
+                }
+                if(!device) return res.json(not_found("Device"))
+
+                return res.json(handle_success(device))
+            });
+
+        });
+        
+    } catch (err) {
+        console.log(err);
+        res.json(handle_generated_error(err));
+    }
+})
+
+
+router.post('/enumerate/team', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let device_id = data.device_id;
+        if(found_invalid_ids([user_id, team_id, device_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."))
+        }
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            
+            // if(
+            //     !(
+            //         is_root(team.root, user_id) || 
+            //         (team.monitoring_admins.has(user_id) && 
+            //         team.monitoring_admins.get(user_id) === true)
+            //     )
+            // ){
+            //     return res.json(not_authenticated);
+            // }
+
+            DeviceModel.find(
+                {
+                    _id : {
+                        $in : team.devices
+                    }
+                }).select("-creds").exec((err, docs) => {
+                    if(err) return res.json(handle_generated_error(err))
+
+                    return res.json(handle_success(docs))
+                });
+
+        });
+        
+    } catch (err) {
+        console.log(err);
+        res.json(handle_generated_error(err));
+    }
+})
+
+router.post('/enumerate/user', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let device_id = data.device_id;
+        if(found_invalid_ids([user_id, team_id, device_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."))
+        }
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            
+            // if(
+            //     !(
+            //         is_root(team.root, user_id) || 
+            //         (team.monitoring_admins.has(user_id) && 
+            //         team.monitoring_admins.get(user_id) === true)
+            //     )
+            // ){
+            //     return res.json(not_authenticated);
+            // }
+
+            DeviceModel.find(
+                {
+                    _id : {
+                        $in : team.user_devices.get(user_id)
+                    }
+                }).select("-creds").exec((err, docs) => {
+                    if(err) return res.json(handle_generated_error(err))
+
+                    return res.json(handle_success(docs))
+                });
+
+        });
+        
+    } catch (err) {
+        console.log(err);
+        res.json(handle_generated_error(err));
+    }
+})
+
+
 
 router.post('/enumerate/device', (req, res, next) => {
     const data = req.body;
@@ -402,84 +439,76 @@ router.post('/enumerate/device', (req, res, next) => {
         }
     
         let isRoot = is_root(team.root, user_id);
-        if(
-            (   
-                isRoot || 
-                ( team.device_admins.has(user_id) && team.device_admins.get(user_id) == true ) || 
-                (team.assigned_devices.has(user_id) && team.assigned_devices.get(user_id)[device_id] == true) || 
-                (team.user_devices.has(user_id) && team.user_devices.get(user_id)[device_id] == true)
-            )
-        ){
-            console.log('here')
-            // Enumerate the device
-            var device = {};
-            if(data.show_creds){
-                device = await DeviceModel.findById(
-                    { 
-                        _id : device_id
-                    }, 
-                );
-            }else{
-                device = await DeviceModel.findById(
-                    {
-                        _id : device_id
-                    }, 
-                ).select('-creds -username -team');
+        // Enumerate the device
+        var device = {};
+        if(data.show_creds){
+            device = await DeviceModel.findById(
+                { 
+                    _id : device_id
+                }, 
+            );
+        }else{
+            device = await DeviceModel.findById(
+                {
+                    _id : device_id
+                }, 
+            ).select('-creds -username -team');
 
-            }
-            let enumerate = {}; 
-            if(data.show_monitors){
-                let obtained_monitors = {};
-                let obtained_monitors_array = [];
-                device.monitors.forEach(agent => {
-                    for (const agent_key in agent) {
-                        if (Object.hasOwnProperty.call(agent, agent_key)) {
-                            const category = agent[agent_key];
-                            obtained_monitors[agent_key] = [];
-                            for (const category_key in category) {
-                                if (Object.hasOwnProperty.call(category, category_key)) {
-                                    const monitor = category[category_key];
-                                    // Waiting for approval
-                                    // obtained_monitors[agent_key].push(category_key);
-                                    obtained_monitors_array.push(category_key)
-                                }
+        }
+        let enumerate = {}; 
+        if(data.show_monitors){
+            let obtained_monitors = {};
+            let obtained_monitors_array = [];
+            device.monitors.forEach(agent => {
+                for (const agent_key in agent) {
+                    if (Object.hasOwnProperty.call(agent, agent_key)) {
+                        const category = agent[agent_key];
+                        obtained_monitors[agent_key] = [];
+                        for (const category_key in category) {
+                            if (Object.hasOwnProperty.call(category, category_key)) {
+                                const monitor = category[category_key];
+                                // Waiting for approval
+                                // obtained_monitors[agent_key].push(category_key);
+                                obtained_monitors_array.push(category_key)
                             }
                         }
                     }
-                });
+                }
+            });
+            
 
-                await MonitorModel.find({
-                    _id : {
-                        $in : obtained_monitors_array
-                    }
-                },
-                (err, monitors) => {
-                    if(err) return res.json(handle_error(err))
+            await MonitorModel.find({
+                _id : {
+                    $in : obtained_monitors_array
+                }
+            },
+            (err, monitors) => {
+                console.log('here')
+                if(err) return res.json(handle_error(err))
 
-                    if(!monitors) return res.json(handle_error({message : "No monitors found."}))
+                if(!monitors) return res.json(handle_error({message : "No monitors found."}))
 
-                    return res.json(handle_success({...(device.toObject()), ...{monitors : monitors} }))
-                });
+                return res.json(handle_success({...(device.toObject()), ...{monitors : monitors} }))
+            });
 
-                // Waiting for approval
-                // for (const key in obtained_monitors) {
-                //     if (Object.hasOwnProperty.call(obtained_monitors, key)) {
-                //         var category = obtained_monitors[key];
-                //         await MonitorModel.find({
-                //             _id : {
-                //                 $in : category
-                //             }
-                //         },
-                //         (err, monitors) => {
-                //             obtained_monitors[key] = monitors;
-                //         });
-                //     }
-                // }
-                
-            }
-        }else{
-            return res.json(handle_error("You're not authenticated to perform this operation."));
+            // Waiting for approval
+            // for (const key in obtained_monitors) {
+            //     if (Object.hasOwnProperty.call(obtained_monitors, key)) {
+            //         var category = obtained_monitors[key];
+            //         await MonitorModel.find({
+            //             _id : {
+            //                 $in : category
+            //             }
+            //         },
+            //         (err, monitors) => {
+            //             obtained_monitors[key] = monitors;
+            //         });
+            //     }
+            // }
+            
         }
+        
+        return res.json(handle_success(device));
 
     });
 })
@@ -493,7 +522,7 @@ router.post('/delete/team', (req, res, next) => {
         return res.json("Insufficient parameters.");
     }
 
-    if(found_invalid_ids([user_id, team_id, device_id])){
+    if(found_invalid_ids([user_id, team_id, device_id]).invalid){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
     TeamModel.findById({
@@ -552,7 +581,7 @@ router.post('/delete/user', (req, res, next) => {
         return res.json("Insufficient parameters.");
     }
 
-    if(found_invalid_ids([user_id, team_id, device_id])){
+    if(found_invalid_ids([user_id, team_id, device_id]).invalid){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
     TeamModel.findById({

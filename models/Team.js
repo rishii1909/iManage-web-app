@@ -23,79 +23,75 @@ const TeamSchema = new Schema({
     users : {
         type : Map,
     },
-    devices : {
-        type : Map,
+    devices : { // team objects go here
+        type : Array,
         default : {}
     },
-    monitors : {
-        type : Map,
+    monitors : { // team objects go here
+        type : Array,
         default : {}
     },
-    user_devices : {
+    agents : { // team objects go here
+        type : Array,
+        default : {}
+    },
+    user_devices : { // user object go here
+        type : Map,
+        default : [],
+    },
+    user_monitors : { // user object go here
+        type : Map,
+        default : [],
+    },
+    user_agents : { // user object go here
+        type : Map,
+        default : [],
+    },
+    assigned_devices : { // Object of users, non-nested. store actual per-user map in user object itself.
         type : Map,
         default : {},
     },
-    user_monitors : {
+    assigned_monitors : { // Object of users, non-nested. store actual per-user map in user object itself.
         type : Map,
         default : {},
     },
-    user_agents : {
-        type : Map,
-        default : {},
-    },
-    device_occupancy : {
+    device_occupancy : { // all occupancy counts between any object increments | decrements
         type : Number,
         default : 0,
     },
-    monitor_occupancy : {
+    monitor_occupancy : { // all occupancy counts between any object increments | decrements
         type : Number,
         default : 0,
     },
-    agent_occupancy : {
+    agent_occupancy : { // all occupancy counts between any object increments | decrements
         type : Number,
         default : 0,
     },
-    assigned_devices : {
+    user_occupancy : { // all occupancy counts between any object increments | decrements
+        type : Number,
+        default : 0,
+    },
+    billing_admins : { // admins
         type : Map,
         default : {},
     },
-    assigned_monitors : {
-        type : Map,
-        default : {},
-    },
-    agents : {
+    user_admins : { // admins
         type : Map,
         default : {}
     },
-    billing_admins : {
+    monitoring_admins : { // admins
         type : Map,
         default : {},
     },
-    user_admins : {
+    notification_templates : { // maybe maybe not
+        type : Map,
+        default : {},
+    },
+    device_groups : { // monitoring groups present in the team, 
         type : Map,
         default : {}
     },
-    monitor_admins : {
-        type : Map,
-        default : {},
-    },
-    device_admins : {
-        type : Map,
-        default : {},
-    },
-    agent_admins : {
-        type : Map,
-        default : {},
-    },
-    notification_templates : {
-        type : Map,
-        default : {},
-    },
-    device_groups : {
-        type : Map,
-        default : {}
-    },
-    analytic_groups : {
+    analytic_groups : { // monitoring groups present in the team, 
         type : Map,
         default : {}
     }

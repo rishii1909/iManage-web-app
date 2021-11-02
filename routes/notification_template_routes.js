@@ -3,7 +3,7 @@ const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const shortid = require('shortid');
 const TeamSecretModel = require('../models/TeamSecret');
-const { handle_success, handle_error, is_root, no_docs_or_error, not_authenticated, exclusive_root_user_action, not_found } = require('../helpers/plans');
+const { handle_success, handle_error, is_root, no_docs_or_error, not_authenticated, exclusive_root_user_action, not_found, handle_generated_error } = require('../helpers/plans');
 const UserModel = require('../models/User');
 const NotificationTemplateModel = require('../models/NotificationTemplate');
 const TeamModel = require('../models/Team');
@@ -24,28 +24,28 @@ router.post('/create', async (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     
-    TeamModel.findById({ 
-        _id : team_id
-    }, async (err, team) => {
-        const invalid = no_docs_or_error(team, err);
-        if(invalid.is_true){
-            return res.json(invalid.message);
-        }
+    UserModel.findById({ 
+        _id : user_id
+    }, async (err, doc) => {
+        if(err) return res.json(handle_generated_error(err))
+
+        if(!doc) return res.json(not_found("User"));
 
         // Making notification rules a JSON Object.
         // console.log(obtain_rules(data.rules));
         if(data.rules) data.rules = obtain_rules(data.rules);
-        // Create notif template.
+
         try {
             const template = await NotificationTemplateModel.create(data);
             if(!template){
                 return res.json(handle_error("There was error while creating the notification template."))
             }
+            console.log(typeof template._id.toString())
 
             UserModel.findOneAndUpdate({
                 _id: user_id,
             }, {
-                [`notification_templates.${template._id}`]: true,
+                $push : {notification_templates : template._id.toString()},
             }, (err, doc) => {
                 const invalid = no_docs_or_error(doc, err);
                 if(invalid.is_true){
@@ -58,7 +58,8 @@ router.post('/create', async (req, res, next) => {
             console.log(err);
             res.json(handle_error(err.message))
         }
-        
+
+
     });
 })
 // Ignore for now
