@@ -248,8 +248,8 @@ router.post('/create/user', async (req, res, next) => {
                         [`monitors.${agent_id}.${monitor_type}.${monitor._id}`]: true,
                     }
                     let update_team = {
-                        [`user_monitors.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
-                        // [`user_monitors.${user_id}.${monitor._id}`]: true,
+                        [`user_monitors.${user_id}.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
+                        $push : { [`user_monitors_arr.${user_id}`]: monitor._id },
                         $inc : { monitor_occupancy : 1 }
                     }
 
@@ -405,13 +405,11 @@ router.post('/dashboard/showcase', (req, res, next) => {
         }
         // Looping through all agents.
         
-        const user_monitors = isEmpty(team.user_monitors) ? {} : team.user_monitors;
-        const team_monitors = isEmpty(team.monitors) ? {} : team.monitors;
+        const user_monitors = team.user_monitors;
+        const team_monitors = team.monitors;
         console.log(user_monitors, team_monitors);
-        const final_monitors_object = {
-            ...(isEmpty(team.user_monitors))
-        };
-        return res.json(handle_success(final_monitors_object));
+        const final_monitors_object = user_monitorsteam_monitors
+        return res.json(final_monitors_object);
         if(isEmpty(final_monitors_object)) return res.json(handle_success(final_response_object));
         
         if(!monitors.size) return res.json(handle_success({}))
@@ -603,7 +601,7 @@ router.post('/enumerate/user', (req, res, next) => {
         }
         const user_monitors_object = team.user_monitors.get(user_id);
         if(!user_monitors_object) return res.json(handle_error("You haven't created any devices yet."));
-        const monitors_array = Object.keys(team.user_monitors.get(user_id));
+        const monitors_array = team.user_monitors_arr.get(user_id);
         
         return res.json(handle_success(
             await MonitorModel.find({

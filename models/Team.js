@@ -43,6 +43,10 @@ const TeamSchema = new Schema({
         type : Map,
         default : {},
     },
+    user_monitors_arr : { // user object go here
+        type : Map,
+        default : {},
+    },
     user_agents : { // user object go here
         type : Map,
         default : {},
