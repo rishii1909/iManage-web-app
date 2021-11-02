@@ -6,7 +6,7 @@ const MonitorModel = require('../models/Monitor');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, check_monitor_type, invalid_monitor_type, binary_monitors } = require('../helpers/plans');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, check_monitor_type, invalid_monitor_type, binary_monitors, handle_generated_error, not_found } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
 const DeviceModel = require('../models/Device');
@@ -270,7 +270,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                 $in : Array.from( team_monitors.keys() ).concat(Array.from( user_monitors.keys() ))
             }
         }).select("api_url");
-        console.log(team_monitors);
+        if(Array.from(team_monitors.keys()).length <= 0) return res.json(handle_success([]))
         team_monitors.forEach( async (monitor_type, agent_key) => {            
             // Looping through all monitor types for an agent.
             for (const monitor_type_key in monitor_type) {
@@ -350,7 +350,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
 })
 
 
-router.post('/update', (req, res, next) => {
+router.post('/update/team', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
@@ -365,7 +365,7 @@ router.post('/update', (req, res, next) => {
     }
     TeamModel.findById({
         _id : team_id
-    }, (err, team) => {
+    }).populate("agent_id").exec(async (err, team) => {
         if(!team || err){
             return res.json(handle_error("Could not retrieve valid data from database."));
         }
@@ -374,28 +374,29 @@ router.post('/update', (req, res, next) => {
             !(
                 isRoot || 
                 (
-                    team.monitor_admins.has(user_id) && 
-                    team.monitor_admins.get(user_id) === true
+                    team.monitoring_admins.has(user_id) && 
+                    team.monitoring_admins.get(user_id) === true
                 )
             )
         ){
             return res.json(not_authenticated);
         }
             //Update the monitor
-            MonitorModel.findByIdAndUpdate(
-                { _id: monitor_id }, 
-                data, 
-                { new : true },
-                (err,resp) => {
-                    if(err){
-                        return res.json(handle_error("There was an error while updating your monitor."));
-                    }
-                    return res.json(handle_success({
-                        message : "Monitor updated successfully.",
-                        response : resp,
-                    }));
+            MonitorModel.findOne({
+                monitor_ref: monitor_ref,
+            }).populate("agent_id").then(async (doc) => {
+                if (!doc) {
+                    return res.json(not_found("Monitor"))
                 }
-            )
+
+                const api = doc.agent_id.api_url
+                await axios.post(
+                    `${api}/api/${doc.type}/fetch/view/many`,
+                    {data}
+                )
+
+            });
+            
 
     });
 })
