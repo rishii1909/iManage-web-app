@@ -388,12 +388,13 @@ router.post('/update/team', (req, res, next) => {
                 if (!doc) {
                     return res.json(not_found("Monitor"))
                 }
-
                 const api = doc.agent_id.api_url
                 await axios.post(
-                    `${api}/api/${doc.type}/fetch/view/many`,
+                    `${api}/api/${doc.type}/mutate/update`,
                     {data}
-                )
+                ).then((response) => {
+                    return res.json(response);
+                })
 
             });
             

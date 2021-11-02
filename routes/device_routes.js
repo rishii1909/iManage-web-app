@@ -425,9 +425,8 @@ router.post('/enumerate/device', (req, res, next) => {
         _id : team_id
     }, async (err, team) => {
 
-        if(!team || err){
-            res.json(handle_error("Could not retrieve valid data from database."));
-        }
+        if(err) return res.json(handle_generated_error(err))
+        if(!team) return res.json(not_found("Team"))
     
         // Enumerate the device
         var device = {};
@@ -472,7 +471,6 @@ router.post('/enumerate/device', (req, res, next) => {
                 }
             },
             (err, monitors) => {
-                console.log('here')
                 if(err) return res.json(handle_error(err))
 
                 if(!monitors) return res.json(handle_error({message : "No monitors found."}))
