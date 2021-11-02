@@ -381,8 +381,7 @@ router.post('/enumerate/user', async (req, res, next) => {
         const data = req.body;
         let user_id = data.user_id;
         let team_id = data.team_id;
-        let device_id = data.device_id;
-        if(found_invalid_ids([user_id, team_id, device_id]).invalid){
+        if(found_invalid_ids([user_id, team_id]).invalid){
             res.json(handle_error("Invalid IDs found in your request."))
         }
         TeamModel.findById({ 
@@ -437,7 +436,6 @@ router.post('/enumerate/device', (req, res, next) => {
             res.json(handle_error("Could not retrieve valid data from database."));
         }
     
-        let isRoot = is_root(team.root, user_id);
         // Enumerate the device
         var device = {};
         if(data.show_creds){

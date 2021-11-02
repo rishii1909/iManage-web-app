@@ -5,80 +5,61 @@ const {NodeSSH} = require('node-ssh')
 const AgentModel = require('../models/Agent');
 const User = require('../models/User');
 const mongoose = require('mongoose');
-const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated } = require('../helpers/plans');
+const { isValidObjectId, Mongoose } = require('mongoose');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, not_found, handle_generated_error, maximum_limit_error } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
+const MonitorModel = require('../models/Monitor');
 const router = express.Router();
 
 const ssh = new NodeSSH()
 
-
+const verbose = "agent"
 router.post('/create/team', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        if(found_invalid_ids([user_id])){
-            res.json({error : "The given User ID is not valid."});
+        let team_id = data.team_id;
+        if(found_invalid_ids([user_id, team_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."));
             return;
         }
-        // user_id = await mongoose.Types.ObjectId(user_id);
-        // console.log(user.team.level);
-        User.findById({ 
-            _id : user_id
-        }).populate('team_id').exec(async (err, user) => {
-            if(!user || err) res.json(handle_error("Could not retrieve valid data from database."));
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            
+            const caps = get_capacity(team.level)
+            if(team.agent_occupancy >= caps.agents) return res.json(maximum_limit_error(verbose))
 
-            const team = user.team_id;
-            const caps = get_capacity(team.level);
-            const isRoot = is_root(team.root, user_id);
-            console.log(team);
+
             if(
                 !(
-                    isRoot || 
-                    (team.agent_admins.has(user_id) && 
-                    team.agent_admins.get(user_id) === true)
+                    is_root(team.root, user_id) || 
+                    (team.monitoring_admins.has(user_id) && 
+                    team.monitoring_admins.get(user_id) === true)
                 )
             ){
-                console.log(isRoot, user_id, team.root)
                 return res.json(not_authenticated);
             }
 
-            // Step 1 : Check for vacancy.
-            if(team.agents.size >= caps.agents) return res.json(handle_error("Max agents limit exceeded."));
+            const final_agent_object = {
+                ...(data.name) && { name : data.name },
+                ...(data.private) && { private : data.private },
+                ...(data.api_url) && { api_url : data.api_url },
+                ...(data.additional_info) && { additional_info : data.additional_info },
+                ...(data.team_id) && { team_id : data.team_id },
+                ...(data.type) && { type : data.type },
+                team_id : team_id
+            }
 
-            // Step 2 : Check if the given remote agent is accessible.
-            const creds = {
-                host : data.host,
-                username : data.username,
-                ...(data.password) && { password : data.password },
-                ...(data.privateKey) && { privateKey : data.privateKey },
-                ...(data.passphrase) && { passphrase : data.passphrase },
-            }
-            if(!data.private){
-                try {
-                    let connection = await ssh.connect(creds);
-                    if(!connection.isConnected){
-                        return res.json(handle_error({
-                            error : null,
-                            message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
-                        }));
-                    }
-                } catch (err) {
-                    console.log('here');
-                    return res.json(handle_error({
-                        error : err,
-                        message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
-                    }));
-                }
-            }
-            // Step 3 : Create the agent
-            data.creds = creds;
             try {
-                const agent = await AgentModel.create(data);
+                const agent = await AgentModel.create(final_agent_object);
+                if(!agent) return res.json(handle_error("There was an error while creating your agent."))
                 // Step 4 : Set update info
                 let update_data = {
-                    [`agents.${agent._id}`]: true,
+                    $push : { [`agents`] : agent._id.toString() },
                     $inc : { agent_occupancy : 1 }
                 }
                 // Step 5 : Push all updates for team.
@@ -88,298 +69,291 @@ router.post('/create/team', async (req, res, next) => {
                 update_data
                 , (err, doc) => {
                     if (err) {
-                        console.log(handle_error("Couldn't update Team"));
+                        return res.json(handle_generated_error(err));
                     }
+                    if(!doc) return res.json(not_found("Team"));
+
+                    res.json(handle_success({
+                        message : "Agent created successfully!",
+                        agent : agent
+                    }))
                 });
-                res.json(handle_success({
-                    message : "Agent created successfully!",
-                    agent : agent
-                }))
             } catch (err) {
-                console.log(err);
-                console.log("Error here");
-                return res.json(handle_error(err.message));
-            } 
+                return res.json(handle_generated_error(err));
+            }
+
         });
-        return;
+        
     } catch (err) {
         console.log(err);
-        res.json({error : err});
+        res.json(handle_generated_error(err));
     }
 })
-// Done!
+
 router.post('/create/user', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
-        if(found_invalid_ids([user_id])){
-            res.json({error : "The given User ID is not valid."});
+        let team_id = data.team_id;
+        if(found_invalid_ids([user_id, team_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."));
             return;
         }
-        // user_id = await mongoose.Types.ObjectId(user_id);
-        // console.log(user.team.level);
-        User.findById({ 
-            _id : user_id
-        }).populate('team_id').exec(async (err, user) => {
-            if(!user || err) res.json(no_docs_or_error);
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            
+            const caps = get_capacity(team.level)
+            if(team.agent_occupancy >= caps.agents) return res.json(maximum_limit_error(verbose))
 
-            const team = user.team_id;
-            const caps = get_capacity(team.level);
-            const isRoot = is_root(team.root, user_id);
-
-            // Step 1 : Check for vacancy.
-            if(team.agent_occupancy >= caps.agents) return res.json(handle_error("Max agents limit exceeded."));
-
-            // Step 2 : Check if the given remote agent is accessible.
-            const creds = {
-                host : data.host,
-                username : data.username,
-                ...(data.password) && { password : data.password },
-                ...(data.privateKey) && { privateKey : data.privateKey },
-                ...(data.passphrase) && { passphrase : data.passphrase },
+            const final_agent_object = {
+                ...(data.name) && { name : data.name },
+                ...(data.private) && { private : data.private },
+                ...(data.api_url) && { api_url : data.api_url },
+                ...(data.additional_info) && { additional_info : data.additional_info },
+                ...(data.team_id) && { team_id : data.team_id },
+                ...(data.type) && { type : data.type },
+                team_id : team_id
             }
-            // if(!data.private){
-            //     try {
-            //         let connection = await ssh.connect(creds);
-            //         if(!connection.isConnected){
-            //             return res.json(handle_error({
-            //                 error : null,
-            //                 message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
-            //             }));
-            //         }
-            //     } catch (err) {
-            //         return res.json(handle_error({
-            //             error : err,
-            //             message : "Could not confirm remote connectivity, are you sure you entered the right credentials?",
-            //         }));
-            //     }
-            // }
-            // Step 3 : Create the agent
-            data.creds = creds;
+
             try {
-                const agent = await AgentModel.create(data);
-                // Step 4 : Update user_agents array for the current team.
-                var updateInfo = {
+                const agent = await AgentModel.create(final_agent_object);
+                // Step 4 : Set update info
+                let update_data = {
+                    $push : { [`user_agents.${user_id}`] : agent._id.toString() },
                     $inc : { agent_occupancy : 1 }
-                };
-                if(!team.user_agents.has(user_id) || !team.user_agents.get(user_id)){
-                    updateInfo[`user_agents.${user_id}`] = {
-                        [`${agent._id}`] : true
-                    }
-                    
-                }else{
-                    updateInfo[`user_agents.${user_id}.${agent._id}`] = true;
-                    
                 }
+                // Step 5 : Push all updates for team.
                 TeamModel.updateOne({
                     _id: team._id,
-                }, 
-                updateInfo,
-                (err, doc) => {
+                },
+                update_data
+                , (err, doc) => {
                     if (err) {
-                        console.log(user_id, agent._id), 
-                        console.log(err, handle_error("Couldn't update Team"));
+                        return res.json(handle_generated_error(err));
                     }
+                    if(!doc) return res.json(not_found("Team"));
+
                 });
                 res.json(handle_success({
                     message : "Agent created successfully!",
                     agent : agent
                 }))
             } catch (err) {
-                console.log(err);
-                return res.json(handle_error(err.message));
-            } 
-        });
+                return res.json(handle_generated_error(err));
+            }
 
-        // res.json({data : data})
-        return;
+        });
+        
     } catch (err) {
         console.log(err);
-        res.json({error : err});
+        res.json(handle_generated_error(err));
     }
 })
 
-router.post('/update/team', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    const agent_id = data.agent_id;
-    data._id = agent_id;
-    if(!(user_id || team_id || agent_id)){
-        return res.json("Insufficient parameters.");
-    }
-    if(!(isValidObjectId(user_id) || isValidObjectId(agent_id) || isValidObjectId(team_id))){
-        res.json({error : "The given ID is not valid."});
-        return;
-    }
-    TeamModel.findById({
-        _id : team_id
-    }, (err, team) => {
-        if(!team || err){
-            return res.json(handle_error("Could not retrieve valid data from database."));
+router.post('/update/team', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let agent_id = data.agent_id;
+        if(found_invalid_ids([user_id, team_id, agent_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."))
         }
-        let isRoot = is_root(team.root, user_id);
-        console.log(team.agents);
-        if( 
-            //Agent exists in the team
-            !(
-                team.agents.has(agent_id) && 
-                (
-                    // if current user is root user.
-                    isRoot || 
-                    // if current user is a agent admin.
-                    team.agent_admins.has(user_id) || 
-                    // if selected agent has been assigned to the current user.
-                    (team.assigned_agents.has(user_id) && team.assigned_agents.get(user_id)[agent_id] === true)
-                )
-            )
-        ){
-            return res.json(not_authenticated);
-        }
-            //Update the agent
-            AgentModel.findByIdAndUpdate({ 
-                _id: agent_id
-            }, 
-            data, {new : true})
-            .select('-creds')
-            .exec(
-            (err,resp) => {
-                if(err){
-                    return res.json(handle_error("There was an error while updating your agent."));
-                }
-                    return res.json(handle_success({
-                        message : "Agent updated successfully.",
-                        response : resp,
-                    }));
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
             
+            if(!team.agents.includes(agent_id)) return res.json(handle_error("Agent not found in your Team."))
+            if(
+                !(
+                    is_root(team.root, user_id) || 
+                    (team.monitoring_admins.has(user_id) && 
+                    team.monitoring_admins.get(user_id) === true)
+                )
+            ){
+                return res.json(not_authenticated);
+            }
+
+            const update_agent_object = {
+                ...(data.name) && {name : data.name},
+                ...(data.team_id) && {team_id : data.team_id},
+                ...(data.snmp) && {snmp : data.snmp},
+                ...(data.type) && {type : data.type},
+                
+            }
+
+            // const creds = {
+            //     ...(data.username) && {username : data.username},
+            //     ...(data.host) && {host : data.host},
+            //     ...(data.password) && { password : data.password },
+            //     ...(data.privateKey) && { privateKey : data.privateKey },
+            //     ...(data.passphrase) && { passphrase : data.passphrase },
+            // }
+            // if(creds.keys(obj).length !== 0){
+            //     update_agent_object.creds = creds;
+            // }
+
+            AgentModel.findOneAndUpdate({
+                _id: agent_id,
+            }, update_agent_object, 
+            {new : true},
+            (err, agent) => {
+                if (err) {
+                    return res.json(handle_generated_error(err))
+                }
+                if(!agent) return res.json(not_found("Agent"))
+
+                return res.json(handle_success(agent))
             });
 
-    });
+        });
+        
+    } catch (err) {
+        console.log(err);
+        res.json(handle_generated_error(err));
+    }
 })
 
-router.post('/update/user', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    const agent_id = data.agent_id;
-    data._id = agent_id;
-    if(!(user_id || team_id || agent_id)){
-        return res.json("Insufficient parameters.");
-    }
-    if(!(isValidObjectId(user_id) || isValidObjectId(agent_id) || isValidObjectId(team_id))){
-        res.json({error : "The given ID is not valid."});
-        return;
-    }
-    TeamModel.findById({
-        _id : team_id
-    }, (err, team) => {
-        if(!team || err){
-            return res.json(handle_error("Could not retrieve valid data from database."));
+router.post('/update/user', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let agent_id = data.agent_id;
+        if(found_invalid_ids([user_id, team_id, agent_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."))
         }
-        let isRoot = is_root(team.root, user_id);
-        if( 
-            // Agent exists in the team
-            !(
-                (
-                    // if current user is root user.
-                    isRoot || 
-                    // if current user owns the agent.
-                    team.user_agents.has(user_id) && team.user_agents.get(user_id)[agent_id] === true
-                    
-                )
-            )
-        ){
-            return res.json(not_authenticated);
-        }
-            //Update the agent
-            AgentModel.findByIdAndUpdate({ 
-                _id: agent_id
-            }, 
-            data, {new : true})
-            .select('-creds')
-            .exec(
-            (err,resp) => {
-                if(err){
-                    return res.json(handle_error("There was an error while updating your agent."));
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            if(!(
+                team.user_agents.has(user_id) && team.user_agents.get(user_id).includes(agent_id)
+            )) return res.json(handle_error("Agent not found in your account."))
+
+
+            const update_agent_object = {
+                ...(data.name) && {name : data.name}, 
+                ...(data.team_id) && {team_id : data.team_id},
+                ...(data.snmp) && {snmp : data.snmp},
+                ...(data.type) && {type : data.type},
+                
+            }
+
+            // const creds = {
+            //     ...(data.username) && {username : data.username},
+            //     ...(data.host) && {host : data.host},
+            //     ...(data.password) && { password : data.password },
+            //     ...(data.privateKey) && { privateKey : data.privateKey },
+            //     ...(data.passphrase) && { passphrase : data.passphrase },
+            // }
+            // if(creds.keys(obj).length !== 0){
+            //     update_agent_object.creds = creds;
+            // }
+
+            AgentModel.findOneAndUpdate({
+                _id: agent_id,
+            }, update_agent_object, 
+            {new : true},
+            (err, agent) => {
+                if (err) {
+                    return res.json(handle_generated_error(err))
                 }
-                    return res.json(handle_success({
-                        message : "Agent updated successfully.",
-                        response : resp,
-                    }));
-            
+                if(!agent) return res.json(not_found("Agent"))
+
+                return res.json(handle_success(agent))
             });
 
-    });
+        });
+        
+    } catch (err) {
+        console.log(err);
+        res.json(handle_generated_error(err));
+    }
 })
 
-router.post('/enumerate/team', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    console.log(user_id, team_id);
-    if( found_invalid_ids([user_id, team_id]) ){
-        return res.json(handle_error("Invalid parameter [id]s."))
-    }
-
-    TeamModel.findById({ 
-        _id : team_id
-    }, async (err, team) => {
-
-        if(!team || err){
-            res.json(handle_error("Your team could not be identified."));
+router.post('/enumerate/team', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let agent_id = data.agent_id;
+        if(found_invalid_ids([user_id, team_id, agent_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."))
         }
-    
-        let isRoot = is_root(team.root, user_id);
-
-        if(
-            // team.agents.has(agent_id) && 
-            (   
-                isRoot || 
-                ( team.agent_admins.has(user_id) && team.agent_admins.get(user_id) === true )
-            )
-        ){
-            // Enumerate the agent
-            let agents_array = Array.from( team.agents.keys() );
-            return res.json(handle_success(
-                await AgentModel.find({
+        TeamModel.findById({ 
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            
+            // if(
+            //     !(
+            //         is_root(team.root, user_id) || 
+            //         (team.monitoring_admins.has(user_id) && 
+            //         team.monitoring_admins.get(user_id) === true)
+            //     )
+            // ){
+            //     return res.json(not_authenticated);
+            // }
+            console.log(team.agents.length)
+            if(team.agents.length == 0) return res.json(handle_success([]));
+            AgentModel.find(
+                {
                     _id : {
-                        $in : agents_array
+                        $in : team.agents
                     }
-                })
-            ));
-        }else{
-            return res.json(not_authenticated);
-        }
+                }).select("-creds").exec((err, docs) => {
+                    if(err) return res.json(handle_generated_error(err))
 
-    });
+                    return res.json(handle_success(docs))
+                });
+
+        });
+        
+    } catch (err) {
+        console.log(err);
+        res.json(handle_generated_error(err));
+    }
 })
 
-router.post('/enumerate/user', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    // console.log("user_id : ", user_id,"team_id : ", team_id);
-    if( found_invalid_ids([user_id, team_id]) ){
-        return res.json(handle_error("Invalid parameter [id]s."))
-    }
-
-    TeamModel.findById({ 
-        _id : team_id
-    }, async (err, team) => {
-        if(!team || err){
-            res.json(handle_error("Your agent could not be identified."));
+router.post('/enumerate/user', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        if(found_invalid_ids([user_id, team_id]).invalid){
+            res.json(handle_error("Invalid IDs found in your request."))
         }
-        const user_agents_object = team.user_agents.get(user_id);
-        if(!user_agents_object) return res.json(handle_error("You haven't created any devices yet."));
-        let agents_array = Object.keys(team.user_agents.get(user_id));
-        return res.json(handle_success(
-            await AgentModel.find({
-                _id : {
-                    $in : agents_array
-                }
-            })
-        ));
-    });
+        TeamModel.findById({
+            _id : team_id
+        }, async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            
+            AgentModel.find(
+                {
+                    _id : {
+                        $in : team.user_agents.get(user_id)
+                    }
+                }).select("-creds").exec((err, docs) => {
+                    if(err) return res.json(handle_generated_error(err))
+
+                    return res.json(handle_success(docs))
+                });
+
+        });
+        
+    } catch (err) {
+        console.log(err);
+        res.json(handle_generated_error(err));
+    }
 })
 
 router.post('/enumerate/agent', (req, res, next) => {
@@ -387,7 +361,7 @@ router.post('/enumerate/agent', (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     const agent_id = data.agent_id;
-    if( found_invalid_ids([user_id, team_id, agent_id]) ){
+    if( found_invalid_ids([user_id, team_id, agent_id]).invalid ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
 
@@ -399,32 +373,75 @@ router.post('/enumerate/agent', (req, res, next) => {
             res.json(handle_error("Could not retrieve valid data from database."));
         }
     
-        let isRoot = is_root(team.root, user_id);
-
-        if(
-            team.agents.has(agent_id) && 
-            (   
-                isRoot || 
-                ( team.agent_admins.has(user_id) && team.agent_admins.get(user_id) === true ) || 
-                (team.assigned_agents.has(user_id) && team.assigned_agents.get(user_id)[agent_id] === true)
-            )
-        ){
-            // Enumerate the agent
-            var agent = {};
-            if(data.show_creds){
-                agent = await AgentModel.findById({ 
+        // Enumerate the agent
+        var agent = {};
+        if(data.show_creds){
+            agent = await AgentModel.findById(
+                { 
                     _id : agent_id
-                });
-                return res.json(handle_success(agent));
-            }
-            return res.json( 
-                await AgentModel.findById({ 
-                _id : agent_id
-                }).select('-creds -username -team')
-            )
+                }, 
+            );
         }else{
-            return res.json(handle_error("You're not authenticated to perform this operation."));
+            agent = await AgentModel.findById(
+                {
+                    _id : agent_id
+                }, 
+            ).select('-creds -username -team');
+
         }
+        if(data.show_monitors){
+            let obtained_monitors = {};
+            let obtained_monitors_array = [];
+            agent.monitors.forEach(agent => {
+                for (const agent_key in agent) {
+                    if (Object.hasOwnProperty.call(agent, agent_key)) {
+                        const category = agent[agent_key];
+                        obtained_monitors[agent_key] = [];
+                        for (const category_key in category) {
+                            if (Object.hasOwnProperty.call(category, category_key)) {
+                                const monitor = category[category_key];
+                                // Waiting for approval
+                                // obtained_monitors[agent_key].push(category_key);
+                                obtained_monitors_array.push(category_key)
+                            }
+                        }
+                    }
+                }
+            });
+            
+
+            await MonitorModel.find({
+                _id : {
+                    $in : obtained_monitors_array
+                }
+            },
+            (err, monitors) => {
+                console.log('here')
+                if(err) return res.json(handle_error(err))
+
+                if(!monitors) return res.json(handle_error({message : "No monitors found."}))
+
+                return res.json(handle_success({...(agent.toObject()), ...{monitors : monitors} }))
+            });
+
+            // Waiting for approval
+            // for (const key in obtained_monitors) {
+            //     if (Object.hasOwnProperty.call(obtained_monitors, key)) {
+            //         var category = obtained_monitors[key];
+            //         await MonitorModel.find({
+            //             _id : {
+            //                 $in : category
+            //             }
+            //         },
+            //         (err, monitors) => {
+            //             obtained_monitors[key] = monitors;
+            //         });
+            //     }
+            // }
+            
+        }
+        
+        return res.json(handle_success(agent));
 
     });
 })
@@ -438,7 +455,7 @@ router.post('/delete/team', (req, res, next) => {
         return res.json("Insufficient parameters.");
     }
 
-    if(found_invalid_ids([user_id, team_id, agent_id])){
+    if(found_invalid_ids([user_id, team_id, agent_id]).invalid){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
     TeamModel.findById({
@@ -465,13 +482,12 @@ router.post('/delete/team', (req, res, next) => {
             _id: data.agent_id
         }, (err) => {
             if(err){
-                return res.json(handle_error("There was an error while deleting your agent."));
+                return res.json(handle_generated_error(err));
             }else{
-                team.agents.delete(agent_id);
                 TeamModel.updateOne({
                     _id: team_id
                 }, {
-                    agents: team.agents,
+                    $pull : {agents : data.agent_id},
                     $inc : { agent_occupancy : -1 }
                 },
                 (err) => {
@@ -497,43 +513,20 @@ router.post('/delete/user', (req, res, next) => {
         return res.json("Insufficient parameters.");
     }
 
-    if(found_invalid_ids([user_id, team_id, agent_id])){
+    if(found_invalid_ids([user_id, team_id, agent_id]).invalid){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
     TeamModel.findById({
         _id : team_id
     }, (err, team) => {
         // Basic check.
-        const invalid = no_docs_or_error(team, err);
-        if(invalid.is_true){
-            console.log(err, team);
-            return res.json(invalid.message);
-        }
-        // Auth check.
-        const isRoot = is_root(team.root, user_id);
-        if(
-            !(
-                isRoot || 
-                (
-                    team.agent_admins.has(user_id) && team.agent_admins.get(user_id) === true
-                )
-            )
-        ){
-            console.log(team.user_agents, user_id)
-            return res.json(not_authenticated);
-        }
+        if(err) return res.json(handle_generated_error(err))
+        if(!team) return res.json(not_found("Team"))
 
-        if( !isRoot && !( team.user_agents.has(delete_user_id) && team.user_agents[delete_user_id].has(agent_id) ) ){
-            console.log(team.user_agents, delete_user_id, agent_id);
-            return res.json(handle_error("Agent not found."));
-        }
-        // console.log(team.user_agents.get(delete_user_id), typeof team.user_agents.get(delete_user_id));
+    
+        if(!team.user_agents.has(user_id)) return res.json(handle_error("There are no agents in your account."))
+        if(!team.user_agents.get(user_id).includes(agent_id)) return res.json(handle_error("The agent you're trying to delete is not present in your account."))
         
-        try {
-            delete team.user_agents.get(delete_user_id)[agent_id];
-        } catch (err) {
-            return res.json(handle_error("There was an error while deleting your agent."))
-        }
         // console.log(team.user_agents.get(delete_user_id))
 
         //Delete the agent
@@ -541,19 +534,16 @@ router.post('/delete/user', (req, res, next) => {
             _id: data.agent_id
         }, (err) => {
             if(err){
-                return res.json(handle_error("There was an error while deleting your agent."));
+                return res.json(handle_generated_error(err));
             }else{
-                TeamModel.updateOne({ 
+                TeamModel.updateOne({
                     _id: team_id
-                }, 
-                {
-                    [`user_agents.${delete_user_id}`]: team.user_agents[delete_user_id],
+                }, {
+                    $pull : {[`user_agents.${user_id}`] : agent_id},
                     $inc : { agent_occupancy : -1 }
                 },
                 (err) => {
-                   if(err){
-                       console.log(`Error: ` + err)
-                   }
+                   return res.json(handle_generated_error(err))
                 });
                 return res.json(handle_success("Agent deleted successfully."));
             }
