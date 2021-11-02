@@ -223,17 +223,6 @@ router.post('/dashboard/showcase', (req, res, next) => {
         const invalid = no_docs_or_error(team, err);
         if(invalid.is_true) return res.json(invalid.message);
 
-        const binaryObject = {
-            null : 0,
-            0 : 0,
-            1 : 0,
-        };
-        const ternaryObject = {
-            null : 0,
-            0 : 0,
-            1 : 0,
-            2 : 0
-        };
         const final_response_object = {
             level_1 : {
                 two_states : {
@@ -263,89 +252,168 @@ router.post('/dashboard/showcase', (req, res, next) => {
             }
         }
         // Looping through all agents.
-        const team_monitors = team.monitors;
-        const user_monitors = team.user_monitors;
+        const team_monitors = team.monitors ? team.monitors : [];
+        const user_monitors = team.user_monitors.has(user_id) ? team.user_monitors.get(user_id) : [];
+        
+        const final_urls = []
         const fetch_urls = await AgentModel.find({
             _id : {
-                $in : Array.from( team_monitors.keys() ).concat(Array.from( user_monitors.keys() ))
+                $in : Array.from( team_monitors.keys() ).concat(Object.keys(user_monitors))
             }
         }).select("api_url");
-        if(Array.from(team_monitors.keys()).length <= 0) return res.json(handle_success([]))
-        team_monitors.forEach( async (monitor_type, agent_key) => {            
-            // Looping through all monitor types for an agent.
-            for (const monitor_type_key in monitor_type) {
-                if (Object.hasOwnProperty.call(monitor_type, monitor_type_key)) {
-                    
-                    //Loooping through all monitors.
-                    const monitors = Object.keys(monitor_type[monitor_type_key]);
-                    // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
-                    const target_agent = fetch_urls.find(obj => {
-                        return obj._id == agent_key
-                    });
-                    console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
-                    console.log(monitors);
-                    await axios.post(
-                        `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
-                        {monitors}
-                    ).then((response) => {
-                        const resp = response.data;
-                        test = resp;
-                        if(resp.accomplished){
-                            console.log("API response : " ,resp.response)
-                            for (const key in resp.response) {
-                                if (Object.hasOwnProperty.call(resp.response, key)) {
-                                    const rec = resp.response[key];
-                                    // Adding to level 1 - starts
-                                    if(binary_monitors[monitor_type_key] === true){
-                                        final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
-                                    }else{
-                                        final_response_object.level_1.three_states[rec._id.monitor_status] += rec.count
-                                    }
-                                    // Adding to level 1 - ends
-
-                                    // Adding to level 2 - starts
-                                    const device_category = binary_monitors[monitor_type_key] == true ? "two_states" : "three_states";
-                                    if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
-                                        final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
-                                    }else{
-                                        final_response_object.level_2[device_category][rec._id.device] = {
-                                            [rec._id.monitor_status] : rec.count
+        if(fetch_urls.length <= 0) return res.json(handle_success([]))
+        if(Array.from(team_monitors.keys()).length > 0){
+            team_monitors.forEach( async (monitor_type, agent_key) => {            
+                // Looping through all monitor types for an agent.
+                for (const monitor_type_key in monitor_type) {
+                    if (Object.hasOwnProperty.call(monitor_type, monitor_type_key)) {
+                        
+                        //Loooping through all monitors.
+                        const monitors = Object.keys(monitor_type[monitor_type_key]);
+                        console.log(monitors);
+                        // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
+                        const target_agent = fetch_urls.find(obj => {
+                            return obj._id == agent_key
+                        });
+                        console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
+                        console.log(monitors);
+                        await axios.post(
+                            `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
+                            {monitors}
+                        ).then((response) => {
+                            const resp = response.data;
+                            test = resp;
+                            if(resp.accomplished){
+                                console.log("API response : " ,resp.response)
+                                for (const key in resp.response) {
+                                    if (Object.hasOwnProperty.call(resp.response, key)) {
+                                        const rec = resp.response[key];
+                                        // Adding to level 1 - starts
+                                        if(binary_monitors[monitor_type_key] === true){
+                                            final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
+                                        }else{
+                                            final_response_object.level_1.three_states[rec._id.monitor_status] += rec.count
                                         }
-                                    }
-                                    // Adding to level 2 - ends
-
-                                    // Adding to level 3 - starts
-                                    if( final_response_object.level_3[rec._id.device] && final_response_object.level_3[rec._id.device][rec._id.monitor_ref] ){
-                                        final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
-                                            label : rec._id.label,
-                                            monitor_status : rec._id.monitor_status
-                                        };
-                                    }else{
-                                        final_response_object.level_3[rec._id.device] = {
-                                            [rec._id.monitor_ref] : {
+                                        // Adding to level 1 - ends
+    
+                                        // Adding to level 2 - starts
+                                        const device_category = binary_monitors[monitor_type_key] == true ? "two_states" : "three_states";
+                                        if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
+                                            final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
+                                        }else{
+                                            final_response_object.level_2[device_category][rec._id.device] = {
+                                                [rec._id.monitor_status] : rec.count
+                                            }
+                                        }
+                                        // Adding to level 2 - ends
+    
+                                        // Adding to level 3 - starts
+                                        if( final_response_object.level_3[rec._id.device] && final_response_object.level_3[rec._id.device][rec._id.monitor_ref] ){
+                                            final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
                                                 label : rec._id.label,
                                                 monitor_status : rec._id.monitor_status
+                                            };
+                                        }else{
+                                            final_response_object.level_3[rec._id.device] = {
+                                                [rec._id.monitor_ref] : {
+                                                    label : rec._id.label,
+                                                    monitor_status : rec._id.monitor_status
+                                                }
+                                            }
+                                        }
+                                        // final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
+                                        //     label : rec._id.label,
+                                        //     monitor_status : rec._id.monitor_status
+                                        // };
+                                        // Adding to level 3 - ends
+                                    }
+                                }
+                            }
+                        }).catch((err) => {
+                            console.log(handle_error(err.message ? err.message : err))
+                        })
+    
+                        // Add check for enabled/disabled monitors here later.
+                    }
+                }
+                // return res.json({binaryObject, ternaryObject});
+            })
+        }
+        if(Object.keys(user_monitors).length > 0){
+            for (const agent_key in user_monitors) {
+                if (Object.hasOwnProperty.call(user_monitors, agent_key)) {
+                    const element = user_monitors[agent_key];
+                    // Looping through all monitor types for an agent.
+                    for (const monitor_type_key in element) {
+
+                        //Loooping through all monitors.
+                        console.log("monitor_type_key", monitor_type_key);
+                        const monitors = Object.keys(element[monitor_type_key]);
+                        // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
+                        // console.log(user_monitor_index, fetch_urls)
+                        const target_agent = fetch_urls.find(obj => {
+                            return obj._id == agent_key
+                        });
+                        if((target_agent && target_agent.api_url)){
+                            console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
+                        await axios.post(
+                            `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
+                            {monitors}
+                        ).then((response) => {
+                            const resp = response.data;
+                            console.log("API response : " ,response.data)
+                            test = resp;
+                            if(resp.accomplished){
+                                for (const key in resp.response) {
+                                    if (Object.hasOwnProperty.call(resp.response, key)) {
+                                        const rec = resp.response[key];
+                                        // Adding to level 1 - starts
+                                        if(binary_monitors[monitor_type_key] === true){
+                                            final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
+                                        }else{
+                                            final_response_object.level_1.three_states[rec._id.monitor_status] += rec.count
+                                        }
+                                        // Adding to level 1 - ends
+                                    
+                                        // Adding to level 2 - starts
+                                        const device_category = binary_monitors[monitor_type_key] == true ? "two_states" : "three_states";
+                                        if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
+                                            final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
+                                        }else{
+                                            final_response_object.level_2[device_category][rec._id.device] = {
+                                                [rec._id.monitor_status] : rec.count
+                                            }
+                                        }
+                                        // Adding to level 2 - ends
+                                    
+                                        // Adding to level 3 - starts
+                                        if( final_response_object.level_3[rec._id.device] && final_response_object.level_3[rec._id.device][rec._id.monitor_ref] ){
+                                            final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
+                                                label : rec._id.label,
+                                                monitor_status : rec._id.monitor_status
+                                            };
+                                        }else{
+                                            final_response_object.level_3[rec._id.device] = {
+                                                [rec._id.monitor_ref] : {
+                                                    label : rec._id.label,
+                                                    monitor_status : rec._id.monitor_status
+                                                }
                                             }
                                         }
                                     }
-                                    // final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
-                                    //     label : rec._id.label,
-                                    //     monitor_status : rec._id.monitor_status
-                                    // };
-                                    // Adding to level 3 - ends
                                 }
                             }
+                        }).catch((err) => {
+                            console.log(handle_error(err.message ? err.message : err))
+                        })
                         }
-                    }).catch((err) => {
-                        console.log(handle_error(err.message ? err.message : err))
-                    })
-
-                    // Add check for enabled/disabled monitors here later.
+                        // Add check for enabled/disabled monitors here later.
+                    }
+                    
                 }
             }
-            // return res.json({binaryObject, ternaryObject});
-            return res.json(handle_success(final_response_object));
-        })
+        }
+        return res.json(handle_success(final_response_object));
     });
 })
 
@@ -393,7 +461,7 @@ router.post('/update/team', (req, res, next) => {
                     `${api}/api/${doc.type}/mutate/update`,
                     {data}
                 ).then((response) => {
-                    return res.json(response);
+                    console.log(response);
                 })
 
             });
