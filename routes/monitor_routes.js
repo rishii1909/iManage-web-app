@@ -304,7 +304,13 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                         // Adding to level 1 - ends
     
                                         // Adding to level 2 - starts
-                                        const device_category = binary_monitors[monitor_type_key] == true ? "two_states" : "three_states";
+                                        let device_category = null;
+                                        if(binary_monitors[monitor_type_key] == true){
+                                            device_category = "two_states";
+                                            rec._id.monitor_status = rec._id.monitor_status ? 0 : 1;
+                                        }else{
+                                            device_category = "three_states";
+                                        }
                                         if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
                                             final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
                                         }else{
@@ -368,13 +374,14 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             {monitors}
                         ).then((response) => {
                             const resp = response.data;
-                            console.log("API response : " ,response.data)
+                            // console.log("API response : " ,response.data)
                             test = resp;
                             if(resp.accomplished){
                                 for (const key in resp.response) {
                                     if (Object.hasOwnProperty.call(resp.response, key)) {
                                         const rec = resp.response[key];
                                         // Adding to level 1 - starts
+                                        if(rec._id.monitor_status == "false") console.log(rec._id.monitor_status);
                                         if(binary_monitors[monitor_type_key] === true){
                                             final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
                                         }else{
@@ -383,7 +390,14 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                         // Adding to level 1 - ends
                                     
                                         // Adding to level 2 - starts
-                                        const device_category = binary_monitors[monitor_type_key] == true ? "two_states" : "three_states";
+                                        let device_category = null;
+                                        if(binary_monitors[monitor_type_key] == true){
+                                            device_category = "two_states";
+                                            rec._id.monitor_status = rec._id.monitor_status ? 0 : 1;
+                                        }else{
+                                            device_category = "three_states";
+                                        }
+                                        
                                         if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
                                             final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
                                         }else{
@@ -411,6 +425,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                 }
                             }
                         }).catch((err) => {
+                            console.log(err)
                             console.log(handle_error(err.message ? err.message : err))
                         })
                         }
@@ -426,19 +441,17 @@ router.post('/dashboard/showcase', (req, res, next) => {
 })
 
 
-router.post('/update/team', (req, res, next) => {
+router.post('/update', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
     const monitor_ref = data.monitor_ref;
-    data._id = monitor_id;
-    if(!(user_id || team_id || monitor_id)){
-        return res.json("Insufficient parameters.");
+    const monitor_id = data.monitor_id;
+    const idcheck = found_invalid_ids([user_id, team_id, monitor_ref]); 
+    if(idcheck.invalid){
+        return res.json(idcheck.message);
     }
-    if(!(isValidObjectId(user_id) || isValidObjectId(monitor_id) || isValidObjectId(team_id))){
-        res.json({error : "The given ID is not valid."});
-        return;
-    }
+
     TeamModel.findById({
         _id : team_id
     }).populate("agent_id").exec(async (err, team) => {
@@ -459,17 +472,19 @@ router.post('/update/team', (req, res, next) => {
         }
             //Update the monitor
             MonitorModel.findOne({
-                monitor_ref: monitor_ref,
+                _id: monitor_id,
             }).populate("agent_id").then(async (doc) => {
                 if (!doc) {
                     return res.json(not_found("Monitor"))
                 }
                 const api = doc.agent_id.api_url
+                console.log(doc.type)
                 await axios.post(
                     `${api}/api/${doc.type}/mutate/update`,
-                    {data}
+                    {...data, ...{agent_id : doc.monitor_ref}}
                 ).then((response) => {
-                    console.log(response);
+                    console.log(response.data);
+                    return res.json(response.data)
                 })
 
             });
