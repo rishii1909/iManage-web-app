@@ -441,7 +441,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
 })
 
 
-router.post('/update', (req, res, next) => {
+router.post('/update/team', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
@@ -490,6 +490,55 @@ router.post('/update', (req, res, next) => {
             });
             
 
+    });
+})
+
+router.post('/update/user', (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    const monitor_ref = data.monitor_ref;
+    const monitor_id = data.monitor_id;
+    const idcheck = found_invalid_ids([user_id, team_id, monitor_ref]); 
+    if(idcheck.invalid){
+        return res.json(idcheck.message);
+    }
+
+    TeamModel.findById({
+        _id : team_id
+    }).populate("agent_id").exec(async (err, team) => {
+        if(!team || err){
+            return res.json(handle_error("Could not retrieve valid data from database."));
+        }
+        let isRoot = is_root(team.root, user_id);
+        if(
+            !(
+                isRoot || 
+                (
+                    team.monitoring_admins.has(user_id) && 
+                    team.monitoring_admins.get(user_id).contains(monitor_id)
+                )
+            )
+        ){
+            return res.json(not_authenticated);
+        }
+            //Update the monitor
+            MonitorModel.findOne({
+                _id: monitor_id,
+            }).populate("agent_id").then(async (doc) => {
+                if (!doc) {
+                    return res.json(not_found("Monitor"))
+                }
+                const api = doc.agent_id.api_url
+                console.log(doc.type)
+                await axios.post(
+                    `${api}/api/${doc.type}/mutate/update`,
+                    {...data, ...{agent_id : doc.monitor_ref}}
+                ).then((response) => {
+                    console.log(response.data);
+                    return res.json(response.data)
+                })
+            });
     });
 })
 
