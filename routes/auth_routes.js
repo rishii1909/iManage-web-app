@@ -21,7 +21,7 @@ router.post('/login', async (req, res, next) => {
                 if (error) {
                     return res.json(handle_error(error));
                 }
-                const token = jwt.sign({user : user._id}, 'iManage-secret-key', {expiresIn : '2h'});
+                const token = jwt.sign({user : user._id}, 'iManage-secret-key', {expiresIn : '1d'});
                 return res.json(handle_success(
                     {
                             user_id : user._id,
