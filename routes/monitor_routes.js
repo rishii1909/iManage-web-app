@@ -686,9 +686,6 @@ router.post('/delete/team', (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     const monitor_id = data.monitor_id;
-    if(!(user_id || team_id || monitor_id)){
-        return res.json("Insufficient parameters.");
-    }
 
     if(found_invalid_ids([user_id, team_id, monitor_id]).invalid){
         return res.json(handle_error("Invalid parameter [id]s."))
@@ -705,14 +702,21 @@ router.post('/delete/team', (req, res, next) => {
             // team.monitors.has(monitor_id) && 
             !(   
                 isRoot || 
-                ( team.monitor_admins.has(user_id) && team.monitor_admins.get(user_id) === true ) || 
-                (team.assigned_monitors.has(user_id) && team.assigned_monitors.get(user_id)[monitor_id] === true)
+                ( team.monitoring_admins.has(user_id) && team.monitoring_admins.get(user_id) === true )
             )
         ){
             console.log("Root  : ", team.root, "User ID : ", user_id)
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }
         //Delete the monitor
+        MonitorModel.findOne({
+            _id: monitor_id,
+        }).then((doc) => {
+            if (!doc) {
+                return res.json(not_found("Monitor"))
+            }
+            
+        });
         MonitorModel.deleteOne({
             _id: data.monitor_id
         }, (err) => {
@@ -775,12 +779,48 @@ router.post('/delete/user', (req, res, next) => {
             return res.json(not_authenticated);
         }
 
-        if( !isRoot && !( team.user_monitors.has(delete_user_id) && team.user_monitors[delete_user_id].has(monitor_id) ) ){
-            console.log(team.user_monitors, delete_user_id, monitor_id);
-            return res.json(handle_error("Monitor not found."));
-        }
-        // console.log(team.user_monitors.get(delete_user_id), typeof team.user_monitors.get(delete_user_id));
-        
+
+
+        MonitorModel.findOneAndDelete({ 
+            _id: monitor_id
+        }, async (err, monitor) => {
+            if(err){
+                return res.json(handle_generated_error(err));
+            } 
+            if(!monitor){
+                return res.json(not_authenticated("Monitor"));
+            }
+
+            // Step 3 : Set update info
+            let delete_device = {
+                $unset : {
+                    [`monitors.${agent_id}.${monitor_type}.${monitor._id}`]: 1,
+                }
+            }
+            let delete_team = {
+                $unset : {
+                    [`user_monitors.${user_id}.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: 1,
+                },
+                $pull : { [`user_monitors_arr.${user_id}`]: monitor._id },
+                $inc : { monitor_occupancy : -1 }
+            }
+
+            // Step 4 : Push all updates for team.
+            await DeviceModel.updateOne(
+                {
+                    _id: device_id,
+                },
+                delete_device
+            );
+            await TeamModel.updateOne(
+                {
+                    _id : team._id,
+                },
+                delete_team
+            );
+
+        });
+
         try {
             delete team.user_monitors.get(delete_user_id)[monitor_id];
         } catch (err) {
@@ -789,6 +829,7 @@ router.post('/delete/user', (req, res, next) => {
         // console.log(team.user_monitors.get(delete_user_id))
 
         //Delete the monitor
+        
         MonitorModel.deleteOne({
             _id: data.monitor_id
         }, (err) => {
