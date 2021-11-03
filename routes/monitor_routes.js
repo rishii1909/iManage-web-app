@@ -262,21 +262,28 @@ router.post('/dashboard/showcase', (req, res, next) => {
             }
         }).select("api_url");
         if(fetch_urls.length <= 0) return res.json(handle_success([]))
-        if(Array.from(team_monitors.keys()).length > 0){
-            team_monitors.forEach( async (monitor_type, agent_key) => {            
+        const team_monitors_keys = Array.from(team_monitors.keys());
+        // console.log(team_monitors_keys, team_monitors);
+        if(team_monitors_keys.length > 0){
+            for (const index in team_monitors_keys ) {
+                const agent_key = team_monitors_keys[index];
+                const monitor_type = team_monitors.get(team_monitors_keys[index])
+            // }
+            // team_monitors.forEach( async (monitor_type, agent_key) => {
+                // console.log("monitor_type", monitor_type, "agent_key", agent_key)         
                 // Looping through all monitor types for an agent.
                 for (const monitor_type_key in monitor_type) {
                     if (Object.hasOwnProperty.call(monitor_type, monitor_type_key)) {
                         
                         //Loooping through all monitors.
                         const monitors = Object.keys(monitor_type[monitor_type_key]);
-                        console.log(monitors);
+                        // console.log(monitors);
                         // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
                         const target_agent = fetch_urls.find(obj => {
                             return obj._id == agent_key
                         });
-                        console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
-                        console.log(monitors);
+                        // console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
+                        // console.log(monitors);
                         await axios.post(
                             `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
                             {monitors}
@@ -284,7 +291,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             const resp = response.data;
                             test = resp;
                             if(resp.accomplished){
-                                console.log("API response : " ,resp.response)
+                                // console.log("API response : " ,resp.response)
                                 for (const key in resp.response) {
                                     if (Object.hasOwnProperty.call(resp.response, key)) {
                                         const rec = resp.response[key];
@@ -337,7 +344,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                     }
                 }
                 // return res.json({binaryObject, ternaryObject});
-            })
+            }
         }
         if(Object.keys(user_monitors).length > 0){
             for (const agent_key in user_monitors) {
@@ -377,8 +384,6 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                     
                                         // Adding to level 2 - starts
                                         const device_category = binary_monitors[monitor_type_key] == true ? "two_states" : "three_states";
-                                        if(device_category === "two_states") rec._id.monitor_status = rec._id.monitor_status === "true" ? 0 : 1;
-                                        if(rec._id.device == undefined) console.log("Undefined found here : ",rec)
                                         if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
                                             final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
                                         }else{
@@ -415,6 +420,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                 }
             }
         }
+        console.log('RETURNING RESPONSE')
         return res.json(handle_success(final_response_object));
     });
 })
