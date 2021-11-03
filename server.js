@@ -6,7 +6,7 @@ const cors = require("cors");
 const UserModel = require('./models/User');
 
 mongoose.connect(
-    "mongodb+srv://admin:admin@cluster0.8nqge.mongodb.net/imanage_auth?retryWrites=true&w=majority",
+    "mongodb+srv://admin:admin@cluster0.t2yk1.mongodb.net/iManage_central_db?retryWrites=true&w=majority",
     {
         useNewUrlParser : true,
         useUnifiedTopology : true

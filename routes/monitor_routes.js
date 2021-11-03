@@ -377,6 +377,8 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                     
                                         // Adding to level 2 - starts
                                         const device_category = binary_monitors[monitor_type_key] == true ? "two_states" : "three_states";
+                                        if(device_category === "two_states") rec._id.monitor_status = rec._id.monitor_status === "true" ? 0 : 1;
+                                        if(rec._id.device == undefined) console.log("Undefined found here : ",rec)
                                         if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
                                             final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
                                         }else{
