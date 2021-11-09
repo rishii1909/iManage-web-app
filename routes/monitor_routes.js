@@ -701,6 +701,7 @@ router.post('/delete/team', async (req, res, next) => {
                 return res.json(not_found("Monitor"));
             }
             const agent = monitor.agent_id
+            const monitor_type = monitor.type;
             axios.post(
                 `${agent.api_url}/api/${monitor.type}/mutate/delete`, // API path
                 {
@@ -714,12 +715,12 @@ router.post('/delete/team', async (req, res, next) => {
                     // If monitor could not be created.
                     if(!remote_response.accomplished) return res.json(remote_response);
 
-                    MonitorModel.findOneAndDelete({ 
+                    MonitorModel.findOneAndDelete({
                         _id: monitor_id
                     }, async (err, doc) => {
                         if(err){
                             return res.json(handle_generated_error(err));
-                        } 
+                        }
                         if(!doc){
                             return res.json(not_found("Monitor to be deleted"));
                         }
@@ -824,7 +825,7 @@ router.post('/delete/user', async (req, res, next) => {
                             $push : { [`user_monitors_arr.${user_id}`]: monitor._id },
                             $inc : { monitor_occupancy : 1 }
                         }
-                    
+
                         // Step 4 : Push all updates for team.
                         await DeviceModel.updateOne(
                             {
