@@ -681,179 +681,187 @@ router.post('/enumerate/monitor', (req, res, next) => {
     });
 })
 
-router.post('/delete/team', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const team_id = data.team_id;
-    const monitor_id = data.monitor_id;
 
-    if(found_invalid_ids([user_id, team_id, monitor_id]).invalid){
-        return res.json(handle_error("Invalid parameter [id]s."))
-    }
-    TeamModel.findById({
-        _id : team_id
-    }, (err, team) => {
 
-        if(!team || err){
-            return res.json(handle_error(err));
+router.post('/delete/team', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        const monitor_id = data.monitor_id;
+        if(found_invalid_ids([user_id, monitor_id]).invalid){
+            return res.json(handle_error("The given User ID is not valid."));
         }
-        const isRoot = is_root(team.root, user_id);
-        if(
-            // team.monitors.has(monitor_id) && 
-            !(   
-                isRoot || 
-                ( team.monitoring_admins.has(user_id) && team.monitoring_admins.get(user_id) === true )
-            )
-        ){
-            console.log("Root  : ", team.root, "User ID : ", user_id)
-            return res.json(handle_error("You're not authenticated to perform this operation."));
-        }
-        //Delete the monitor
+
         MonitorModel.findOne({
-            _id: monitor_id,
-        }).then((doc) => {
-            if (!doc) {
-                return res.json(not_found("Monitor"))
+            _id : monitor_id,
+        }).populate("agent_id").exec(async (err, monitor) => {
+            if(err) return res.json(handle_generated_error(err))
+            if (!monitor) {
+                return res.json(not_found("Monitor"));
             }
-            
-        });
-        MonitorModel.deleteOne({
-            _id: data.monitor_id
-        }, (err) => {
-            if(err){
-                return res.json(handle_error("There was an error while deleting your monitor."));
-            }else{
-                team.monitors.delete(monitor_id);
-                TeamModel.updateOne({
-                    _id: team_id
-                }, {
-                    monitors: team.monitors,
-                    $inc : { monitor_occupancy : -1 }
-                },
-                (err) => {
-                   if(err){
-                       console.log(`Error: ` + err)
-                   }
-                });
-                return res.json(handle_success("Monitor deleted successfully."));
-            }
-        });
-        
-    });
-})
+            const agent = monitor.agent_id
+            axios.post(
+                `${agent.api_url}/api/${monitor.type}/mutate/delete`, // API path
+                {
+                    user_id : user_id,
+                    agent_id : monitor.monitor_ref
+                } // Data to be sent
 
-router.post('/delete/user', (req, res, next) => {
-    const data = req.body;
-    const user_id = data.user_id;
-    const delete_user_id = data.delete_user_id;
-    const team_id = data.team_id;
-    const monitor_id = data.monitor_id;
+            ).then( async response => {
+                try {
+                    const remote_response = response.data;
+                    // If monitor could not be created.
+                    if(!remote_response.accomplished) return res.json(remote_response);
 
-    if(!(user_id || team_id || monitor_id)){
-        return res.json("Insufficient parameters.");
-    }
+                    MonitorModel.findOneAndDelete({ 
+                        _id: monitor_id
+                    }, async (err, doc) => {
+                        if(err){
+                            return res.json(handle_generated_error(err));
+                        } 
+                        if(!doc){
+                            return res.json(not_found("Monitor to be deleted"));
+                        }
 
-    if(found_invalid_ids([user_id, team_id, monitor_id]).invalid){
-        return res.json(handle_error("Invalid parameter [id]s."))
-    }
-    TeamModel.findById({
-        _id : team_id
-    }, (err, team) => {
-        // Basic check.
-        const invalid = no_docs_or_error(team, err);
-        if(invalid.is_true){
-            console.log(err, team);
-            return res.json(invalid.message);
-        }
-        // Auth check.
-        const isRoot = is_root(team.root, user_id);
-        if(
-            !(
-                isRoot || 
-                (
-                    team.monitor_admins.has(user_id) && team.monitor_admins[user_id] === true
-                )
-            )
-        ){
-            console.log(team.user_monitors, user_id)
-            return res.json(not_authenticated);
-        }
+                         // Step 3 : Set update info
+                        let update_device = {
+                            $unset : {
+                                [`monitors.${agent._id}.${monitor_type}.${monitor._id}`]: true,
+                            }
+                        }
+                        let update_team = {
+                            $unset : {
+                                [`monitors.${agent._id}.${monitor_type}.${monitor.monitor_ref}`]: true,
+                            },
+                            // [`user_monitors.${user_id}.${monitor._id}`]: true,
+                            $inc : { monitor_occupancy : -1 }
+                        }
+                    
+                        // Step 4 : Push all updates for team.
+                        await DeviceModel.updateOne(
+                            {
+                                _id: monitor.device_id,
+                            },
+                            update_device
+                        );
+                        await TeamModel.updateOne(
+                            {
+                                _id : team._id,
+                            },
+                            update_team
+                        );
+                        res.json(handle_success({
+                            message : "Monitor created successfully!",
+                            monitor : {...monitor.toObject(), ...remote_response}
+                        }))
 
-
-
-        MonitorModel.findOneAndDelete({ 
-            _id: monitor_id
-        }, async (err, monitor) => {
-            if(err){
-                return res.json(handle_generated_error(err));
-            } 
-            if(!monitor){
-                return res.json(not_authenticated("Monitor"));
-            }
-
-            // Step 3 : Set update info
-            let delete_device = {
-                $unset : {
-                    [`monitors.${agent_id}.${monitor_type}.${monitor._id}`]: 1,
+                        });
+                    
+                } catch (err) {
+                    return res.json(handle_error(err.message));
                 }
-            }
-            let delete_team = {
-                $unset : {
-                    [`user_monitors.${user_id}.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: 1,
-                },
-                $pull : { [`user_monitors_arr.${user_id}`]: monitor._id },
-                $inc : { monitor_occupancy : -1 }
-            }
 
-            // Step 4 : Push all updates for team.
-            await DeviceModel.updateOne(
-                {
-                    _id: device_id,
-                },
-                delete_device
-            );
-            await TeamModel.updateOne(
-                {
-                    _id : team._id,
-                },
-                delete_team
-            );
-
+            }).catch((err) => {
+                console.log(err)
+                return res.json(handle_error(err.message ? err.message : err))
+            })
         });
-
-        try {
-            delete team.user_monitors.get(delete_user_id)[monitor_id];
-        } catch (err) {
-            return res.json(handle_error("There was an error while deleting your monitor."))
-        }
-        // console.log(team.user_monitors.get(delete_user_id))
-
-        //Delete the monitor
-        
-        MonitorModel.deleteOne({
-            _id: data.monitor_id
-        }, (err) => {
-            if(err){
-                return res.json(handle_error("There was an error while deleting your monitor."));
-            }else{
-                TeamModel.updateOne({ 
-                    _id: team_id
-                }, 
-                {
-                    [`user_monitors.${delete_user_id}`]: team.user_monitors[delete_user_id],
-                    $inc : { monitor_occupancy : -1 }
-                },
-                (err) => {
-                   if(err){
-                       console.log(`Error: ` + err)
-                   }
-                });
-                return res.json(handle_success("Monitor deleted successfully."));
-            }
-        });
-        
-    });
+    } catch (err) {
+        console.log(err)
+        res.json(handle_error(err.message));
+    }
 })
+
+
+router.post('/delete/user', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        const monitor_id = data.monitor_id;
+        if(found_invalid_ids([user_id, monitor_id]).invalid){
+            return res.json(handle_error("The given User ID is not valid."));
+        }
+
+        MonitorModel.findOne({
+            _id : monitor_id,
+        }).populate("agent_id").exec(async (err, monitor) => {
+            if(err) return res.json(handle_generated_error(err))
+            if (!monitor) {
+                return res.json(not_found("Monitor"));
+            }
+            const agent = monitor.agent_id
+            axios.post(
+                `${agent.api_url}/api/${monitor.type}/mutate/delete`, // API path
+                {
+                    user_id : user_id,
+                    agent_id : monitor.monitor_ref
+                } // Data to be sent
+
+            ).then( async response => {
+                try {
+                    const remote_response = response.data;
+                    // If monitor could not be created.
+                    if(!remote_response.accomplished) return res.json(remote_response);
+
+                    MonitorModel.findOneAndDelete({ 
+                        _id: monitor_id
+                    }, async (err, doc) => {
+                        if(err){
+                            return res.json(handle_generated_error(err));
+                        } 
+                        if(!doc){
+                            return res.json(not_found("Monitor to be deleted"));
+                        }
+
+                        // Step 3 : Set update info
+                        let update_device = {
+                            [`monitors.${agent_id}.${monitor_type}.${monitor._id}`]: true,
+                        }
+                        let update_team = {
+                            [`user_monitors.${user_id}.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
+                            $push : { [`user_monitors_arr.${user_id}`]: monitor._id },
+                            $inc : { monitor_occupancy : 1 }
+                        }
+                    
+                        // Step 4 : Push all updates for team.
+                        await DeviceModel.updateOne(
+                            {
+                                _id: device_id,
+                            },
+                            update_device
+                        );
+                        await TeamModel.updateOne(
+                            {
+                                _id : team._id,
+                            },
+                            update_team
+                        );
+                    
+                        res.json(handle_success({
+                            message : "Monitor created successfully!",
+                            monitor : {...monitor.toObject(), ...remote_response}
+                        }))
+
+                        });
+                    
+                } catch (err) {
+                    return res.json(handle_error(err.message));
+                }
+
+            }).catch((err) => {
+                console.log(err)
+                return res.json(handle_error(err.message ? err.message : err))
+            })
+        });
+    } catch (err) {
+        console.log(err)
+        res.json(handle_error(err.message));
+    }
+})
+
+
 
 router.post('/enumerate', async (req, res, next) => {
     const data = req.body;

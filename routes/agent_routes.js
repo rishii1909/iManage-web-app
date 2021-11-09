@@ -551,9 +551,9 @@ router.post('/delete/user', (req, res, next) => {
                     $inc : { agent_occupancy : -1 }
                 },
                 (err) => {
-                   return res.json(handle_generated_error(err))
+                   if(err) return res.json(handle_generated_error(err))
+                   return res.json(handle_success("Agent deleted successfully."));
                 });
-                return res.json(handle_success("Agent deleted successfully."));
             }
         });
         
