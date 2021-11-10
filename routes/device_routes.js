@@ -52,6 +52,7 @@ router.post('/create/team', async (req, res, next) => {
                 ...(data.privateKey) && { privateKey : data.privateKey },
                 ...(data.passphrase) && { passphrase : data.passphrase },
             }
+            console.log(creds)
 
             if(!data.private){
                 try {
@@ -172,6 +173,7 @@ router.post('/create/user', async (req, res, next) => {
 
             try {
                 const device = await DeviceModel.create(final_device_object);
+
                 // Step 4 : Set update info
                 let update_data = {
                     $push : { [`user_devices.${user_id}`] : device._id.toString() },
@@ -447,6 +449,7 @@ router.post('/enumerate/device', (req, res, next) => {
         if(data.show_monitors){
             let obtained_monitors = {};
             let obtained_monitors_array = [];
+            if(!device.monitors) return res.json(handle_success({...(device.toObject()), ...{monitors : []} }));
             device.monitors.forEach(agent => {
                 for (const agent_key in agent) {
                     if (Object.hasOwnProperty.call(agent, agent_key)) {
@@ -495,7 +498,6 @@ router.post('/enumerate/device', (req, res, next) => {
             
         }
         
-        return res.json(handle_success(device));
 
     });
 })
@@ -597,9 +599,9 @@ router.post('/delete/user', (req, res, next) => {
                     $inc : { device_occupancy : -1 }
                 },
                 (err) => {
-                   return res.json(handle_generated_error(err))
+                   if(err) return res.json(handle_generated_error(err));
+                   return res.json(handle_success("Device deleted successfully."));
                 });
-                return res.json(handle_success("Device deleted successfully."));
             }
         });
         
