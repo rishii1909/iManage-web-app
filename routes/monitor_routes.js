@@ -748,12 +748,12 @@ router.post('/delete/team', async (req, res, next) => {
                         );
                         await TeamModel.updateOne(
                             {
-                                _id : team._id,
+                                _id : team_id,
                             },
                             update_team
                         );
                         res.json(handle_success({
-                            message : "Monitor created successfully!",
+                            message : "Monitor deleted successfully!",
                             monitor : {...monitor.toObject(), ...remote_response}
                         }))
 
@@ -792,7 +792,8 @@ router.post('/delete/user', async (req, res, next) => {
             if (!monitor) {
                 return res.json(not_found("Monitor"));
             }
-            const agent = monitor.agent_id
+            const agent = monitor.agent_id;
+            const monitor_type = monitor.type;
             axios.post(
                 `${agent.api_url}/api/${monitor.type}/mutate/delete`, // API path
                 {
@@ -818,10 +819,10 @@ router.post('/delete/user', async (req, res, next) => {
 
                         // Step 3 : Set update info
                         let update_device = {
-                            [`monitors.${agent_id}.${monitor_type}.${monitor._id}`]: true,
+                            [`monitors.${agent._id}.${monitor_type}.${monitor._id}`]: true,
                         }
                         let update_team = {
-                            [`user_monitors.${user_id}.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
+                            [`user_monitors.${user_id}.${agent._id}.${monitor_type}.${monitor.monitor_ref}`]: true,
                             $push : { [`user_monitors_arr.${user_id}`]: monitor._id },
                             $inc : { monitor_occupancy : 1 }
                         }
@@ -829,19 +830,19 @@ router.post('/delete/user', async (req, res, next) => {
                         // Step 4 : Push all updates for team.
                         await DeviceModel.updateOne(
                             {
-                                _id: device_id,
+                                _id: monitor.device_id,
                             },
                             update_device
                         );
                         await TeamModel.updateOne(
                             {
-                                _id : team._id,
+                                _id : team_id,
                             },
                             update_team
                         );
                     
                         res.json(handle_success({
-                            message : "Monitor created successfully!",
+                            message : "Monitor deleted successfully!",
                             monitor : {...monitor.toObject(), ...remote_response}
                         }))
 
