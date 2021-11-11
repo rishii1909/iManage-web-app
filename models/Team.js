@@ -101,7 +101,7 @@ const TeamSchema = new Schema({
     }],
     analytic_groups : [{
         type : mongoose.Schema.ObjectId,
-        ref : "AnalyticGroup",
+        ref : "MonitorGroup",
     }],
 }, { versionKey: false })
 

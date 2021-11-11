@@ -1,7 +1,7 @@
 const express = require('express');
 
 const TeamModel = require('../models/Team');
-const { handle_success, handle_error, is_root, no_docs_or_error, handle_generated_error } = require('../helpers/plans');
+const { handle_success, handle_error, is_root, no_docs_or_error, handle_generated_error, not_found } = require('../helpers/plans');
 const AgentModel = require('../models/Agent');
 
 const router = express.Router();
@@ -27,12 +27,22 @@ const router = express.Router();
 router.post('/enumerate', async (req, res, next) => {
     const data = req.body;
     try {
-        await TeamModel.findById({_id : data.team_id}, async (err, team) => {
-            const invalid = no_docs_or_error(team, err);
-            if(invalid.is_true){
-                console.log(err, team)
-                return res.json(invalid.message);
-            }
+        TeamModel.findOne({_id : data.team_id})
+        .populate(
+            [
+                {
+                    path : "analytic_groups",
+                    select : "name"
+                },
+                {
+                    path : "device_groups",
+                    select : "name"
+                }
+            ]
+        )
+        .exec( async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
             // team_monitors = {};
             // agent_id_keys = Array.from(team.monitors.keys());
             // agent_fetched_keys = await AgentModel.find({ 
