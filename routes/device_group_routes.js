@@ -5,7 +5,7 @@ const {NodeSSH} = require('node-ssh')
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, validate_response, not_found } = require('../helpers/plans');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, validate_response, not_found, handle_generated_error } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
 const DeviceModel = require('../models/Device');
@@ -16,13 +16,26 @@ const verbose = "Device Group"
 router.post('/add', async (req, res, next) => {
     try {
         const data = req.body;
-        let user_id = data.user_id;
         let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
+        let devices = data.devices;
+        let analytic_groups = data.analytic_groups;
+        let push_updates = {};
+
+        if(devices && Array.isArray(devices) && devices.length !== 0){
+            push_updates.devices = {
+                $each : devices,
+            }
+        }
+        if(analytic_groups && Array.isArray(analytic_groups) && analytic_groups.length !== 0){
+            push_updates.analytic_groups = {
+                $each : analytic_groups,
+            }
+        }
+        if(Object.keys(push_updates).length == 0) return res.json(handle_error("No devices or analytic groups provided."))
         DeviceGroupModel.findOneAndUpdate({
             _id: device_group_id,
         }, {
-            [`devices.${device_id}`]: true,
+            $push : push_updates
         },
         { 
             new : true 
@@ -37,6 +50,7 @@ router.post('/add', async (req, res, next) => {
         });
 
     } catch (err) {
+        console.log(err);
         res.json(handle_error(err))
     }
 })
@@ -46,13 +60,26 @@ router.post('/remove', async (req, res, next) => {
         const data = req.body;
         let user_id = data.user_id;
         let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
+        let devices = data.devices;
+        let analytic_groups = data.analytic_groups;
+        let pull_updates = {};
+
+        if(devices && Array.isArray(devices) && devices.length !== 0){
+            pull_updates.devices = {
+                $in : devices,
+            }
+        }
+        if(analytic_groups && Array.isArray(analytic_groups) && analytic_groups.length !== 0){
+            pull_updates.analytic_groups = {
+                $in : analytic_groups,
+            }
+        }
+        if(Object.keys(pull_updates).length == 0) return res.json(handle_error("No devices or analytic groups provided."))
+
         DeviceGroupModel.findOneAndUpdate({
             _id: device_group_id,
         }, {
-            $unset : {
-                [`devices.${device_id}`] : 1
-            },
+            $pull : pull_updates
         },
         { 
             new : true 
@@ -70,87 +97,39 @@ router.post('/remove', async (req, res, next) => {
         res.json(handle_error(err))
     }
 })
-router.post('/disable', async (req, res, next) => {
-    try {
-        const data = req.body;
-        let user_id = data.user_id;
-        let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
-        DeviceGroupModel.findOneAndUpdate({
-            _id: device_group_id,
-        }, {
-            [`devices.${device_id}`]: false,
-        },
-        { 
-            new : true 
-        }, 
-        (err, doc) => {
-            if (err) {
-                return res.json(handle_error(err))
-            }
-            if(!doc) return res.json(not_found("Device Group"));
 
-            return res.json(handle_success(doc))
-        });
-
-    } catch (err) {
-        res.json(handle_error(err))
-    }
-})
-router.post('/enable', async (req, res, next) => {
-    try {
-        const data = req.body;
-        let user_id = data.user_id;
-        let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
-        DeviceGroupModel.findOneAndUpdate({
-            _id: device_group_id,
-        }, {
-            [`devices.${device_id}`]: true,
-        },
-        { 
-            new : true 
-        }, 
-        (err, doc) => {
-            if (err) {
-                return res.json(handle_error(err))
-            }
-            if(!doc) return res.json(not_found("Device Group"));
-
-            return res.json(handle_success(doc))
-        });
-
-    } catch (err) {
-        res.json(handle_error(err))
-    }
-})
 router.post('/enumerate', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
         let device_group_id = data.device_group_id;
-        let device_id = data.device_id;
+
         DeviceGroupModel.findOne({
             _id: device_group_id,
-        }).then((device_group) => {
-            if (!device_group) {
-                return res.json(not_found(verbose));
-            } else{
-                const devices = Array.from( device_group.devices.keys() )
-                DeviceModel.find({ 
-                    _id: { $in : devices}
-                }).select("name host type").exec((err, docs) => {
-                    if(err){
-                        return res.json(handle_error(err));
-                    } else{
-                        return res.json(handle_success(docs))
-                    }
-                });
+        })
+        .populate([
+            {
+                path : "analytic_groups",
+                select : "name"
+            },
+            {
+                path : "devices",
+                select : "name type"
             }
+        ])
+        // .populate("analytic_groups devices")
+        .exec((err, device_group) => {
+            if(err){
+                return res.json(handle_generated_error(err));
+            }
+            if (!device_group) {
+                return res.json(not_found("Device Group"));
+            }
+            return res.json(handle_success(device_group));
         });
 
     } catch (err) {
-        res.json(handle_error(err))
+        res.json(handle_generated_error(err))
     }
 })
 router.post('/create', async (req, res, next) => {
@@ -220,11 +199,13 @@ router.post('/update', (req, res, next) => {
 
     const ic = found_invalid_ids([user_id, team_id, device_group_id], res);
     if(ic.invalid) return res.json(ic.message);
+
     TeamModel.findById({
         _id : team_id
     }, (err, team) => {
 
-        
+        if(err) return res.json(handle_generated_error(err));
+        if(!team) return res.json(not_found("Team"));
         let isRoot = is_root(team.root, user_id);
         if(
             !(

@@ -8,11 +8,15 @@ const DeviceGroupSchema = new Schema({
         type : String,
         required : true,
     },
-    devices : {
-        type : Map,
-        required : true,
-        default : {},
-    }
+    devices : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "Device",
+    }],
+    analytic_groups : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "MonitorGroup",
+    }],
+
 }, { versionKey: false })
 
 

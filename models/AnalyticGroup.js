@@ -8,11 +8,10 @@ const MonitorGroupSchema = new Schema({
         type : String,
         required : true,
     },
-    monitors : {
-        type : Map,
-        required : true,
-        default : {},
-    }
+    monitors : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "Monitor",
+    }],
 }, { versionKey: false })
 
 

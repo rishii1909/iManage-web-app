@@ -47,6 +47,10 @@ const TeamSchema = new Schema({
         type : Map,
         default : {},
     },
+    team_monitors_arr : { // user object go here
+        type : Array,
+        default : [],
+    },
     user_agents : { // user object go here
         type : Map,
         default : {},

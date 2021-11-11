@@ -121,5 +121,54 @@ router.post('/device_admin/add', async (req, res, next) => {
     }
 })
 
+router.post('/device_admin/revoke', async (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    // const new_user_id = data.new_user.user_id;
+    // const new_user_name = data.new_user.name;
+    const revoke_user_id = data.revoke_user_id;
+    const revoke_user_name = data.revoke_user_name;
+    const team_id = data.team_id;
+    try {
+        await TeamModel.findById({_id : team_id}, (err, response) => {
+            if(!err){
+                let team = response;
+                let root_user = team.root;
+                console.log(team);
+                // Checks.
+
+                if(!is_root(root_user, user_id)){
+                    return res.json(handle_error("Only the root user can revoke device admin permissions."))
+                }
+                if(!team.device_admins.has(new_user_id)){
+                    return res.json(handle_error(  revoke_user_name + " is not a device admin."));
+                }
+
+                // Actual operations.
+
+                TeamModel.updateOne({
+                    _id: team_id
+                }, {
+                    $unset : {
+                        [`device_admins.${revoke_user_id}`] : 1
+                    },
+                },
+                (err) => {
+                    if(err){
+                        return res.json(handle_error(err));
+                    }else{
+                        return res.json(handle_success(new_user_name + " is no longer a device admin."))
+                    }
+                });
+
+            }else{
+                res.json(handle_error({err}));
+            }
+        });
+    } catch (err) {
+        console.log(err);
+    }
+})
+
 
 module.exports = router;

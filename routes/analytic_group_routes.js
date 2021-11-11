@@ -5,10 +5,10 @@ const {NodeSSH} = require('node-ssh')
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, validate_response, not_found } = require('../helpers/plans');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, validate_response, not_found, handle_generated_error } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
-const MonitorModel = require('../models/Monitor');
+const MonitorModel = require('../models/Device');
 const MonitorGroupModel = require('../models/AnalyticGroup');
 const router = express.Router();
 const verbose = "Analytic Group"
@@ -16,13 +16,22 @@ const verbose = "Analytic Group"
 router.post('/add', async (req, res, next) => {
     try {
         const data = req.body;
-        let user_id = data.user_id;
         let analytic_group_id = data.analytic_group_id;
-        let monitor_id = data.monitor_id;
+        let monitors = data.monitors;
+        let push_updates = {};
+
+        if(monitors && Array.isArray(monitors) && monitors.length !== 0){
+            push_updates.monitors = {
+                $each : monitors,
+            }
+        }
+
+        if(Object.keys(push_updates).length == 0) return res.json(handle_error("No monitors provided."))
+
         MonitorGroupModel.findOneAndUpdate({
             _id: analytic_group_id,
         }, {
-            [`monitors.${monitor_id}`]: true,
+            $push : push_updates
         },
         { 
             new : true 
@@ -31,7 +40,7 @@ router.post('/add', async (req, res, next) => {
             if (err) {
                 return res.json(handle_error(err))
             }
-            if(!doc) return res.json(not_found("Analytic group"));
+            if(!doc) return res.json(not_found(verbose));
 
             return res.json(handle_success(doc))
         });
@@ -46,14 +55,22 @@ router.post('/remove', async (req, res, next) => {
         const data = req.body;
         let user_id = data.user_id;
         let analytic_group_id = data.analytic_group_id;
-        let monitor_id = data.monitor_id;
+        let monitors = data.monitors;
+
+        let pull_updates = {};
+
+        if(monitors && Array.isArray(monitors) && monitors.length !== 0){
+            pull_updates.monitors = {
+                $in : monitors,
+            }
+        }
+
+        if(Object.keys(pull_updates).length == 0) return res.json(handle_error("No monitors provided."))
+        
         MonitorGroupModel.findOneAndUpdate({
             _id: analytic_group_id,
-            [`monitors.${monitor_id}`]: true || false,
         }, {
-            $unset : {
-                [`monitors.${monitor_id}`] : 1
-            },
+            $pull : pull_updates
         },
         { 
             new : true 
@@ -62,7 +79,7 @@ router.post('/remove', async (req, res, next) => {
             if (err) {
                 return res.json(handle_error(err))
             }
-            if(!doc) return res.json(handle_error("Monitor does not exist in Analytic Group."));
+            if(!doc) return res.json(not_found(verbose));
 
             return res.json(handle_success(doc))
         });
@@ -71,89 +88,34 @@ router.post('/remove', async (req, res, next) => {
         res.json(handle_error(err))
     }
 })
-router.post('/disable', async (req, res, next) => {
-    try {
-        const data = req.body;
-        let user_id = data.user_id;
-        let analytic_group_id = data.analytic_group_id;
-        let monitor_id = data.monitor_id;
-        MonitorGroupModel.findOneAndUpdate({
-            _id: analytic_group_id,
-            [`monitors.${monitor_id}`]: true || false,
-        }, {
-            [`monitors.${monitor_id}`]: false,
-        },
-        { 
-            new : true 
-        }, 
-        (err, doc) => {
-            if (err) {
-                return res.json(handle_error(err))
-            }
-            if(!doc) return res.json(handle_error("Monitor does not exist in Analytic Group."));
 
-            return res.json(handle_success(doc))
-        });
-
-    } catch (err) {
-        res.json(handle_error(err))
-    }
-})
-router.post('/enable', async (req, res, next) => {
-    try {
-        const data = req.body;
-        let user_id = data.user_id;
-        let analytic_group_id = data.analytic_group_id;
-        let monitor_id = data.monitor_id;
-        MonitorGroupModel.findOneAndUpdate({
-            _id: analytic_group_id,
-            [`monitors.${monitor_id}`]: true || false,
-        }, {
-            [`monitors.${monitor_id}`]: true,
-        },
-        { 
-            new : true 
-        }, 
-        (err, doc) => {
-            if (err) {
-                return res.json(handle_error(err))
-            }
-            if(!doc) return res.json(handle_error("Monitor does not exist in Analytic Group."));
-
-            return res.json(handle_success(doc))
-        });
-
-    } catch (err) {
-        res.json(handle_error(err))
-    }
-})
 router.post('/enumerate', async (req, res, next) => {
     try {
         const data = req.body;
         let user_id = data.user_id;
         let analytic_group_id = data.analytic_group_id;
-        let monitor_id = data.monitor_id;
+
         MonitorGroupModel.findOne({
             _id: analytic_group_id,
-        }).then((analytic_group) => {
+        })
+        .populate([
+            {
+                path : "monitors",
+                select : "name",
+            }
+        ])
+        .exec((err, analytic_group) => {
+            if(err){
+                return res.json(handle_generated_error(err));
+            }
             if (!analytic_group) {
                 return res.json(not_found(verbose));
-            } else{
-                const monitors = Array.from( analytic_group.monitors.keys() )
-                MonitorModel.find({ 
-                    _id: { $in : monitors}
-                }).select("label type monitor_ref").exec((err, docs) => {
-                    if(err){
-                        return res.json(handle_error(err));
-                    } else{
-                        return res.json(handle_success(docs))
-                    }
-                });
             }
+            return res.json(handle_success(analytic_group));
         });
 
     } catch (err) {
-        res.json(handle_error(err))
+        res.json(handle_generated_error(err))
     }
 })
 router.post('/create', async (req, res, next) => {
@@ -176,8 +138,8 @@ router.post('/create', async (req, res, next) => {
                     !(
                         isRoot || 
                         (
-                            team.monitor_admins.has(user_id) && 
-                            team.monitor_admins.get(user_id) === true
+                            team.device_admins.has(user_id) && 
+                            team.device_admins.get(user_id) === true
                         )
                     )
                 ){
@@ -233,14 +195,14 @@ router.post('/update', (req, res, next) => {
             !(
                 isRoot || 
                 (
-                    team.monitor_admins.has(user_id) && 
-                    team.monitor_admins.get(user_id) === true
+                    team.device_admins.has(user_id) && 
+                    team.device_admins.get(user_id) === true
                 )
             )
         ){
             return res.json(not_authenticated);
         }
-            //Update the Monitor group
+            //Update the Analytic Group
             MonitorGroupModel.findOneAndUpdate({
                 _id: analytic_group_id,
             }, 
@@ -250,7 +212,7 @@ router.post('/update', (req, res, next) => {
                 if(invalid.is_true) return res.json(invalid.message);
 
                 res.json(handle_success({
-                    message : "Analytic group updated successfully!",
+                    message : "Analytic Group updated successfully!",
                     analytic_group : analytic_group
                 }));
             });
@@ -286,15 +248,15 @@ router.post('/delete', (req, res, next) => {
             !(
                 isRoot || 
                 (
-                    team.monitor_admins.has(user_id) && 
-                    team.monitor_admins.get(user_id) === true
+                    team.device_admins.has(user_id) && 
+                    team.device_admins.get(user_id) === true
                 )
             )
         ){
             return res.json(not_authenticated);
         }
         
-            //Delete the Monitor group
+            //Delete the Analytic Group
             MonitorGroupModel.findOneAndDelete({ 
                 _id: analytic_group_id
             }, (err, doc) => {

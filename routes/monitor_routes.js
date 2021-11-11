@@ -80,37 +80,38 @@ router.post('/create/team', async (req, res, next) => {
                     let update_team = {
                         [`monitors.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
                         // [`user_monitors.${user_id}.${monitor._id}`]: true,
-                        $inc : { monitor_occupancy : 1 }
+                        $inc : { monitor_occupancy : 1 },
+                        $push : {team_monitors_arr : monitor._id}
                     }
-
-                    // Step 4 : Push all updates for team.
-                    await DeviceModel.updateOne(
-                        {
-                            _id: device_id,
-                        },
-                        update_device
-                    );
-                    await TeamModel.updateOne(
+                    await TeamModel.findOneAndUpdate(
                         {
                             _id : team._id,
                         },
-                        update_team
+                        {new : true},
+                        update_team,
+                        (err, team) => {
+                          if(err) console.log(err);
+                        }
                     );
                     res.json(handle_success({
                         message : "Monitor created successfully!",
                         monitor : {...monitor.toObject(), ...remote_response}
                     }))
                 } catch (err) {
+                    console.log(err)
                     return res.json(handle_error(err.message));
+
                 }
 
             }).catch((err) => {
+                console.log(err)
                 return res.json(handle_error(err.message ? err.message : err))
             })
         
         })
     } catch (err) {
         res.json(handle_error(err.message));
+        console.log(err)
     }
 })
 
