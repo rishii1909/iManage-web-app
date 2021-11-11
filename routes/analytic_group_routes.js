@@ -150,7 +150,9 @@ router.post('/create', async (req, res, next) => {
                     if(!analytic_group) return res.json(handle_error("Analytic Group could not be created."));  
                     // Step 3 : Set update info
                     let update_analytic_group = {
-                        [`analytic_groups.${analytic_group._id}`]: true,
+                        $push : {
+                            analytic_groups : analytic_group._id
+                        },
                     }
                     // Step 4 : Push all updates for team.
                     const team_update = await TeamModel.updateOne(
@@ -260,15 +262,17 @@ router.post('/delete', (req, res, next) => {
             MonitorGroupModel.findOneAndDelete({ 
                 _id: analytic_group_id
             }, (err, doc) => {
-               const invalid = no_docs_or_error(doc, err);
-               if(invalid.is_true) return res.json(invalid.message);
-
-                team.analytic_groups.delete(analytic_group_id);
+                if(err) return res.json(err);
+                if(!doc) return res.json(not_found(verbose))
                 TeamModel.findOneAndUpdate({
                     _id: team_id,
-                }, {
-                    analytic_groups: team.analytic_groups,
-                }, (err, doc) => {
+                }, 
+                {
+                    $pull : {
+                        analytic_groups : analytic_group_id
+                    }
+                }, 
+                (err, doc) => {
                     const invalid = no_docs_or_error(doc, err);
                     if(invalid.is_true) return res.json(invalid.message);
 

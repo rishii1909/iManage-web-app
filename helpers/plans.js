@@ -74,7 +74,7 @@ exports.handle_error = (error_message_or_object) => {
 exports.handle_generated_error = (generated_error_object) => {
   return {
       accomplished : false,
-      response : generated_error_object.message ? generated_error_object.message : generated_error_object
+      response : (generated_error_object && generated_error_object.message) ? generated_error_object.message : generated_error_object
   }
 }
 

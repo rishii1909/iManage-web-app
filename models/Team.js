@@ -95,14 +95,14 @@ const TeamSchema = new Schema({
         type : Map,
         default : {},
     },
-    device_groups : { // monitoring groups present in the team, 
-        type : Map,
-        default : {}
-    },
-    analytic_groups : { // monitoring groups present in the team, 
-        type : Map,
-        default : {}
-    }
+    device_groups : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "DeviceGroup",
+    }],
+    analytic_groups : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "AnalyticGroup",
+    }],
 }, { versionKey: false })
 
 

@@ -152,19 +152,21 @@ router.post('/create', async (req, res, next) => {
                     !(
                         isRoot || 
                         (
-                            team.device_admins.has(user_id) && 
+                            team.device_admins.has(user_id) &&
                             team.device_admins.get(user_id) === true
                         )
                     )
                 ){
                     return res.json(not_authenticated);
-                }   
+                }
                 try {
                     const device_group = await DeviceGroupModel.create(data);
                     if(!device_group) return res.json(handle_error("Device Group could not be created."));  
                     // Step 3 : Set update info
                     let update_device_group = {
-                        [`device_groups.${device_group._id}`]: true,
+                        $push : {
+                            device_groups : device_group._id,
+                        }
                     }
                     // Step 4 : Push all updates for team.
                     const team_update = await TeamModel.updateOne(
@@ -279,12 +281,15 @@ router.post('/delete', (req, res, next) => {
                const invalid = no_docs_or_error(doc, err);
                if(invalid.is_true) return res.json(invalid.message);
 
-                team.device_groups.delete(device_group_id);
                 TeamModel.findOneAndUpdate({
                     _id: team_id,
-                }, {
-                    device_groups: team.device_groups,
-                }, (err, doc) => {
+                }, 
+                {
+                    $pull : {
+                        device_groups : device_group_id,
+                    }    
+                }, 
+                (err, doc) => {
                     const invalid = no_docs_or_error(doc, err);
                     if(invalid.is_true) return res.json(invalid.message);
 
