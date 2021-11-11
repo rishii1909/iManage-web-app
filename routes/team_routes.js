@@ -103,5 +103,7 @@ router.post('/enumerate/team/monitors', async (req, res, next) => {
 
 
 router.use('/monitoring_admins', require("./team_sub_routes/monitoring_admin"));
+router.use('/billing_admins', require("./team_sub_routes/billing_admin"));
+router.use('/sudoers', require("./team_sub_routes/sudoers_admin"));
 
 module.exports = router;

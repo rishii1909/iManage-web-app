@@ -79,14 +79,18 @@ const TeamSchema = new Schema({
         type : Number,
         default : 0,
     },
-    billing_admins : { // admins
-        type : Map,
-        default : {},
-    },
-    user_admins : { // admins
-        type : Map,
-        default : {}
-    },
+    sudoers : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "User",
+    }],
+    billing_admins : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "User",
+    }],
+    user_admins : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "User",
+    }],
     monitoring_admins : [{
         type : mongoose.Schema.ObjectId,
         ref : "User",
