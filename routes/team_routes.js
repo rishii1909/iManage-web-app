@@ -102,6 +102,6 @@ router.post('/enumerate/team/monitors', async (req, res, next) => {
 
 
 
-router.use('/device_admin', require("./team_sub_routes/device_admin"));
+router.use('/monitoring_admins', require("./team_sub_routes/monitoring_admin"));
 
 module.exports = router;

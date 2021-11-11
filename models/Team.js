@@ -87,10 +87,10 @@ const TeamSchema = new Schema({
         type : Map,
         default : {}
     },
-    monitoring_admins : { // admins
-        type : Map,
-        default : {},
-    },
+    monitoring_admins : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "User",
+    }],
     notification_templates : { // maybe maybe not
         type : Map,
         default : {},
