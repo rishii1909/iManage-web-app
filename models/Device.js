@@ -17,6 +17,11 @@ const DeviceSchema = new Schema({
         type : Number,
         required : true,
     },
+    community_string : {
+        type : String,
+        required : true,
+        default : "public"
+    },
     type : {
         type : Number,
         required : true,
@@ -24,15 +29,15 @@ const DeviceSchema = new Schema({
     },
     username : {
         type : String,
-        required : true,
+        // required : true,
     },
     host : {
         type : String,
-        required : true,
+        // required : true,
     },
     creds : {
         type : Schema.Types.Mixed,
-        required : true
+        // required : true
     },
     monitors : {
         type : Map,
