@@ -75,6 +75,7 @@ router.post('/create/team', async (req, res, next) => {
                 name : data.name ,
                 team_id : data.team_id ,
                 snmp : data.snmp ,
+                community_string : data.community_string ,
                 type : data.type ,
                 username : data.username ,
                 host : data.host ,
@@ -164,6 +165,8 @@ router.post('/create/user', async (req, res, next) => {
                 name : data.name ,
                 team_id : data.team_id ,
                 snmp : data.snmp ,
+                community_string : data.community_string ,
+
                 type : data.type ,
                 username : data.username ,
                 host : data.host ,
@@ -237,6 +240,7 @@ router.post('/update/team', async (req, res, next) => {
                 ...(data.name) && {name : data.name},
                 ...(data.team_id) && {team_id : data.team_id},
                 ...(data.snmp) && {snmp : data.snmp},
+                ...(data.community_string) && {snmp : data.community_string},
                 ...(data.type) && {type : data.type},
                 
             }
@@ -296,6 +300,7 @@ router.post('/update/user', async (req, res, next) => {
                 ...(data.name) && {name : data.name}, 
                 ...(data.team_id) && {team_id : data.team_id},
                 ...(data.snmp) && {snmp : data.snmp},
+                ...(data.community_string) && {snmp : data.community_string},
                 ...(data.type) && {type : data.type},
                 
             }
