@@ -17,21 +17,15 @@ const user_routes = require("./routes/user_routes");
 const notif_routes = require("./routes/notification_template_routes");
 
 const { WebSocketServer } = require('ws');
+const http = require('http');
 const { webSocketRecievedJSON } = require('./helpers/plans');
 const url = require('url');
 const { newAgent, removeAgent } = require('./helpers/websocket');
-const wss = new WebSocketServer({port : 8080});
 
-wss.on('connection', (ws, req) => {
-  newAgent(req, ws)
-  ws.on('message', function incoming(message) {
-    console.log('received: %s', webSocketRecievedJSON(message));
-  });
-  // ws.send('[+] Connection established');
-  ws.on('close', () => {
-    removeAgent(req);
-  })
-})
+
+const { Server } = require('ws');
+
+
 
 mongoose.connect(
     "mongodb+srv://admin:admin@cluster0.t2yk1.mongodb.net/iManage_central_db?retryWrites=true&w=majority",
@@ -98,6 +92,27 @@ app.use(function (req, res, next) {
   next();
 });
 
-app.listen(process.env.PORT || 3001, () => {
-  console.log("Server initiated.")
+// app.listen(process.env.PORT || 3001, () => {
+//   console.log("Server initiated at port : " + (process.env.PORT || 3001))
+// })
+
+const httpServer = http.createServer(app)
+
+
+const wss = new WebSocketServer({server : httpServer});
+
+// console.log(wss)
+wss.on('connection', (ws, req) => {
+  newAgent(req, ws)
+  ws.on('message', function incoming(message) {
+    console.log('received: %s', webSocketRecievedJSON(message));
+  });
+  // ws.send('[+] Connection established');
+  ws.on('close', () => {
+    removeAgent(req);
+  })
+})
+
+httpServer.listen(process.env.PORT || 3001, () => {
+  console.log("Server initiated at port : " + (process.env.PORT || 3001))
 })
