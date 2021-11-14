@@ -6,7 +6,7 @@ const MonitorModel = require('../models/Monitor');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { isValidObjectId } = require('mongoose');
-const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, check_monitor_type, invalid_monitor_type, binary_monitors, handle_generated_error, not_found } = require('../helpers/plans');
+const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, no_docs_or_error, not_authenticated, check_monitor_type, invalid_monitor_type, binary_monitors, handle_generated_error, not_found, webSocketSendJSON, webSocketRecievedJSON } = require('../helpers/plans');
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
 const DeviceModel = require('../models/Device');
@@ -15,9 +15,13 @@ const AgentModel = require('../models/Agent');
 const { refreshStyles } = require('less');
 const NotificationTemplateModel = require('../models/NotificationTemplate');
 const router = express.Router();
+// import WebSocket from 'ws';
+const WebSocket = require("ws");
+var ab2str = require('arraybuffer-to-string');
+const { fetchWebSocket } = require('../helpers/websocket');
+const { parseDashboardDataResponse } = require('../helpers/monitors')
 
 const ssh = new NodeSSH()
-
 
 router.post('/create/team', async (req, res, next) => {
     try {
@@ -36,7 +40,7 @@ router.post('/create/team', async (req, res, next) => {
         AgentModel.findById({
             _id : agent_id
         })
-        .select('api_url team_id -_id')
+        .select('api_url name private team_id')
         .populate({
             path : 'team_id',
             select : 'monitor_occupancy level'
@@ -48,7 +52,7 @@ router.post('/create/team', async (req, res, next) => {
 
             // Populated declarations.
             const team = agent.team_id;
-
+            
             // Check for vacancy.
             if(team.monitor_occupancy >= get_capacity(team.level).monitors) return res.json(handle_error("Max monitors limit exceeded."));
 
@@ -56,18 +60,45 @@ router.post('/create/team', async (req, res, next) => {
             const device = await DeviceModel.findById({ _id : device_id }).select('-_id creds');
             if(!device) return res.json(handle_error("Device not found."));
             const monitor_info = { ...data, ...(device.creds) };
+            monitor_info.api_path = `/api/${monitor_info.type}/mutate/create`;
+            monitor_info.api_method = 'post';
 
             // Add code here to check for permissions. Skipped for now.
 
             // Call the remote agent API to create a new monitor.
-            axios.post(
+            if(agent.private == true){
+                // const urlInfo = (new URL(agent.api_url));
+                // domain = urlInfo.hostname.replace('www.','');
+                // const webSocketPath = "ws://" + domain + ":" + urlInfo.port + "/api";
+                // console.log("Web Socket path is : " + webSocketPath)
+                // const ws = new WebSocket(webSocketPath);
+                console.log(agent._id);
+                const ws = fetchWebSocket(agent._id);
+                if(!ws) return res.json(handle_error("Remote agent " + agent.name + " is not connected to the central server."));
+                webSocketSendJSON(ws, monitor_info);
+                ws.on("message", function incoming(response){
+                    const response_json = webSocketRecievedJSON(response);
+                    update_team_after_create_team_monitor(response_json);
+                    
+                })
+            }
+            else {
+                axios.post(
 
-                `${agent.api_url}/api/${data.type}/mutate/create`, // API path
-                monitor_info // Data to be sent
+                    `${agent.api_url}/api/${data.type}/mutate/create`, // API path
+                    monitor_info // Data to be sent
 
-            ).then( async response => {
+                ).then( async response => {
+                    update_team_after_create_team_monitor(response.data);
+
+                }).catch((err) => {
+                    console.log(err)
+                    return res.json(handle_error(err.message ? err.message : err))
+                })
+            }
+            async function update_team_after_create_team_monitor(remote_response){
                 try {
-                    const remote_response = response.data;
+                    // const remote_response = response.data;
                     // If monitor could not be created.
                     if(!remote_response.accomplished) return res.json(remote_response);
                     const monitor = await MonitorModel.create({...monitor_info, ...{monitor_ref : remote_response.agent_id}});
@@ -83,31 +114,29 @@ router.post('/create/team', async (req, res, next) => {
                         $inc : { monitor_occupancy : 1 },
                         $push : {team_monitors_arr : monitor._id}
                     }
-                    await TeamModel.findOneAndUpdate(
+                    await DeviceModel.updateOne(
+                        {
+                            _id: device_id,
+                        },
+                        update_device
+                    );
+                    await TeamModel.updateOne(
                         {
                             _id : team._id,
                         },
-                        {new : true},
                         update_team,
-                        (err, team) => {
-                          if(err) console.log(err);
-                        }
                     );
-                    res.json(handle_success({
+                    const final_response = {...monitor.toObject(), ...remote_response};
+                    final_response._id = monitor._id;
+                    return res.json(handle_success({
                         message : "Monitor created successfully!",
-                        monitor : {...monitor.toObject(), ...remote_response}
+                        monitor : final_response
                     }))
                 } catch (err) {
                     console.log(err)
-                    return res.json(handle_error(err.message));
 
                 }
-
-            }).catch((err) => {
-                console.log(err)
-                return res.json(handle_error(err.message ? err.message : err))
-            })
-        
+            }
         })
     } catch (err) {
         res.json(handle_error(err.message));
@@ -132,7 +161,6 @@ router.post('/create/user', async (req, res, next) => {
         AgentModel.findById({
             _id : agent_id
         })
-        .select('api_url team_id -_id')
         .populate({
             path : 'team_id',
             select : 'monitor_occupancy level'
@@ -151,21 +179,48 @@ router.post('/create/user', async (req, res, next) => {
             // Fetch and store device info.
             const device = await DeviceModel.findById({ _id : device_id }).select('-_id creds');
             if(!device) return res.json(handle_error("Device not found."));
-            console.log(device.creds)
             const monitor_info = { ...data, ...(device.creds) };
-            console.log(monitor_info);
+            monitor_info.api_path = `/api/${monitor_info.type}/mutate/create`;
+            monitor_info.api_method = 'post';
 
             // Add code here to check for permissions. Skipped for now.
 
             // Call the remote agent API to create a new monitor.
-            axios.post(
 
-                `${agent.api_url}/api/${data.type}/mutate/create`, // API path
-                monitor_info // Data to be sent
+            if(agent.private == true){
+                // const urlInfo = (new URL(agent.api_url));
+                // domain = urlInfo.hostname.replace('www.','');
+                // const webSocketPath = "ws://" + domain + ":" + urlInfo.port + "/api";
+                // console.log("Web Socket path is : " + webSocketPath)
+                // const ws = new WebSocket(webSocketPath);
+                // console.log(agent._id);
+                const ws = fetchWebSocket(agent._id);
+                if(!ws) return res.json(handle_error("Remote agent " + agent.name + " is not connected to the central server."));
+                webSocketSendJSON(ws, monitor_info);
+                ws.on("message", function incoming(response){
+                    const response_json = webSocketRecievedJSON(response);
+                    update_team_after_create_user_monitor(response_json);
+                    
+                })
+            }else{
+                axios.post(
 
-            ).then( async response => {
+                    `${agent.api_url}/api/${data.type}/mutate/create`, // API path
+                    monitor_info // Data to be sent
+    
+                ).then( async response => {
+                    update_team_after_create_user_monitor(response.data);
+    
+                }).catch((err) => {
+                    return res.json(handle_error(err.message ? err.message : err))
+                })
+            }
+
+            
+
+            async function update_team_after_create_user_monitor(remote_response){
                 try {
-                    const remote_response = response.data;
+                    // const remote_response = response.data;
                     // If monitor could not be created.
                     if(!remote_response.accomplished) return res.json(remote_response);
                     const monitor = await MonitorModel.create({...monitor_info, ...{monitor_ref : remote_response.agent_id}});
@@ -194,17 +249,16 @@ router.post('/create/user', async (req, res, next) => {
                         },
                         update_team
                     );
-                    res.json(handle_success({
+                    const final_response = {...monitor.toObject(), ...remote_response};
+                    final_response._id = monitor._id;
+                    return res.json(handle_success({
                         message : "Monitor created successfully!",
-                        monitor : {...monitor.toObject(), ...remote_response}
+                        monitor : final_response
                     }))
                 } catch (err) {
-                    return res.json(handle_error(err.message));
+                    console.log(err);
                 }
-
-            }).catch((err) => {
-                return res.json(handle_error(err.message ? err.message : err))
-            })
+            }
         
         })
     } catch (err) {
@@ -285,68 +339,27 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         });
                         // console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
                         // console.log(monitors);
-                        await axios.post(
-                            `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
-                            {monitors}
-                        ).then((response) => {
-                            const resp = response.data;
-                            test = resp;
-                            if(resp.accomplished){
-                                // console.log("API response : " ,resp.response)
-                                for (const key in resp.response) {
-                                    if (Object.hasOwnProperty.call(resp.response, key)) {
-                                        const rec = resp.response[key];
-                                        // Adding to level 1 - starts
-                                        if(binary_monitors[monitor_type_key] === true){
-                                            final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
-                                        }else{
-                                            final_response_object.level_1.three_states[rec._id.monitor_status] += rec.count
-                                        }
-                                        // Adding to level 1 - ends
-    
-                                        // Adding to level 2 - starts
-                                        let device_category = null;
-                                        if(binary_monitors[monitor_type_key] == true){
-                                            device_category = "two_states";
-                                            rec._id.monitor_status = rec._id.monitor_status ? 0 : 1;
-                                        }else{
-                                            device_category = "three_states";
-                                        }
-                                        if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
-                                            final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
-                                        }else{
-                                            final_response_object.level_2[device_category][rec._id.device] = {
-                                                [rec._id.monitor_status] : rec.count
-                                            }
-                                        }
-                                        // Adding to level 2 - ends
-    
-                                        // Adding to level 3 - starts
-                                        if( final_response_object.level_3[rec._id.device] && final_response_object.level_3[rec._id.device][rec._id.monitor_ref] ){
-                                            final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
-                                                label : rec._id.label,
-                                                monitor_status : rec._id.monitor_status
-                                            };
-                                        }else{
-                                            final_response_object.level_3[rec._id.device] = {
-                                                [rec._id.monitor_ref] : {
-                                                    label : rec._id.label,
-                                                    monitor_status : rec._id.monitor_status
-                                                }
-                                            }
-                                        }
-                                        // final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
-                                        //     label : rec._id.label,
-                                        //     monitor_status : rec._id.monitor_status
-                                        // };
-                                        // Adding to level 3 - ends
-                                    }
-                                }
-                            }
-                        }).catch((err) => {
-                            console.log(handle_error(err.message ? err.message : err))
-                        })
-    
+
+                        const ws = fetchWebSocket(target_agent._id);
+                        if(ws){
+                            webSocketSendJSON(ws, {monitors});
+                            ws.on("message", function incoming(response){
+                                const response_json = webSocketRecievedJSON(response);
+                                update_team_after_create_user_monitor(response_json);
+
+                            })
+                        }else{
+                            await axios.post(
+                                `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
+                                {monitors}
+                            ).then((response) => {
+                                const resp = response.data;
+                                parseDashboardDataResponse(resp, final_response_object, monitor_type_key);
+                            }).catch((err) => {
+                                console.log(handle_error(err.message ? err.message : err))
+                            })
+                        }
+                        
                         // Add check for enabled/disabled monitors here later.
                     }
                 }
@@ -479,15 +492,26 @@ router.post('/update/team', (req, res, next) => {
                     return res.json(not_found("Monitor"))
                 }
                 const api = doc.agent_id.api_url
-                console.log(doc.type)
-                await axios.post(
-                    `${api}/api/${doc.type}/mutate/update`,
-                    {...data, ...{agent_id : doc.monitor_ref}}
-                ).then((response) => {
-                    console.log(response.data);
-                    return res.json(response.data)
-                })
+                const sendData = {...data, ...{agent_id : doc.monitor_ref}};
+                sendData.api_path = `/api/${doc.type}/mutate/update`;
+                sendData.api_method = "post";
 
+                const ws = fetchWebSocket(doc.agent_id._id);
+                if(ws){
+                    webSocketSendJSON(ws, sendData);
+                    ws.on("message", function incoming(response){
+                        const response_json = webSocketRecievedJSON(response);
+                        return res.json(response_json);
+                    })
+                }else{
+                    await axios.post(
+                        `${api}/api/${doc.type}/mutate/update`,
+                        sendData
+                    ).then((response) => {
+                        console.log(response.data);
+                        return res.json(response.data)
+                    })
+                }
             });
             
 
@@ -511,18 +535,18 @@ router.post('/update/user', (req, res, next) => {
         if(!team || err){
             return res.json(handle_error("Could not retrieve valid data from database."));
         }
-        let isRoot = is_root(team.root, user_id);
-        if(
-            !(
-                isRoot || 
-                (
-                    team.monitoring_admins.has(user_id) && 
-                    team.monitoring_admins.get(user_id).contains(monitor_id)
-                )
-            )
-        ){
-            return res.json(not_authenticated);
-        }
+        // let isRoot = is_root(team.root, user_id);
+        // if(
+        //     !(
+        //         isRoot || 
+        //         (
+        //             team.monitoring_admins.has(user_id) && 
+        //             team.monitoring_admins.get(user_id).contains(monitor_id)
+        //         )
+        //     )
+        // ){
+        //     return res.json(not_authenticated);
+        // }
             //Update the monitor
             MonitorModel.findOne({
                 _id: monitor_id,
@@ -531,14 +555,26 @@ router.post('/update/user', (req, res, next) => {
                     return res.json(not_found("Monitor"))
                 }
                 const api = doc.agent_id.api_url
-                console.log(doc.type)
-                await axios.post(
-                    `${api}/api/${doc.type}/mutate/update`,
-                    {...data, ...{agent_id : doc.monitor_ref}}
-                ).then((response) => {
-                    console.log(response.data);
-                    return res.json(response.data)
-                })
+                const sendData = {...data, ...{agent_id : doc.monitor_ref}};
+                sendData.api_path = `/api/${doc.type}/mutate/update`;
+                sendData.api_method = "post";
+
+                const ws = fetchWebSocket(doc.agent_id._id);
+                if(ws){
+                    webSocketSendJSON(ws, sendData);
+                    ws.on("message", function incoming(response){
+                        const response_json = webSocketRecievedJSON(response);
+                        return res.json(response_json);
+                    })
+                }else{
+                    await axios.post(
+                        `${api}/api/${doc.type}/mutate/update`,
+                        {...data, ...{agent_id : doc.monitor_ref}}
+                    ).then((response) => {
+                        console.log(response.data);
+                        return res.json(response.data)
+                    })
+                }
             });
     });
 })
@@ -633,13 +669,13 @@ router.post('/enumerate/monitor', (req, res, next) => {
     
         let isRoot = is_root(team.root, user_id);
         // if(!team.monitors.has(monitor_id)) return res.json(handle_error("Monitor not found in your Team"));
-        if(
-            (   
-                isRoot || 
-                ( team.monitor_admins.has(user_id) && team.monitor_admins[user_id] === true ) || 
-                (team.assigned_monitors.has(user_id) && team.assigned_monitors[user_id][monitor_id] === true)
-            )
-        ){
+        // if(
+        //     (   
+        //         isRoot || 
+        //         ( team.monitor_admins.has(user_id) && team.monitor_admins[user_id] === true ) || 
+        //         (team.assigned_monitors.has(user_id) && team.assigned_monitors[user_id][monitor_id] === true)
+        //     )
+        // ){
             // Enumerate the monitor
             await MonitorModel.findById({ 
             _id : monitor_id
@@ -649,35 +685,50 @@ router.post('/enumerate/monitor', (req, res, next) => {
                 select : 'api_url -_id'
             }).exec( async (err, monitor) => {
                 // Call the remote agent API.
-                axios.post(
-                    `${monitor.agent_id.api_url}/api/${monitor.type}/fetch/view/one`, // API path
-                    {agent_id : monitor.monitor_ref} // Data to be sent
+                const sendData = {};
+                sendData.api_path = `${monitor.agent_id.api_url}/api/${monitor.type}/fetch/view/one`;
+                sendData.api_method = "post";
+                sendData.agent_id = monitor.monitor_ref;
+
+                const ws = fetchWebSocket(monitor.agent_id._id);
+                if(ws){
+                    webSocketSendJSON(ws, sendData);
+                    ws.on("message", function incoming(response){
+                        const response_json = webSocketRecievedJSON(response);
+                        return res.json(response_json);
+                    })
+                }else{
+                    axios.post(
+                        `${monitor.agent_id.api_url}/api/${monitor.type}/fetch/view/one`, // API path
+                        {agent_id : monitor.monitor_ref} // Data to be sent
+                    
+                    ).then( async response => {
+                        try {
+                            const remote_response = response.data;
+                            NotificationTemplateModel.findById({ 
+                                _id : monitor.notification_template
+                            }, (err, doc) => {
+                                const final_response = {
+                                    monitor : remote_response
+                                };
+                                if(doc){
+                                    final_response.notification_template = doc;
+                                }
+                                return res.json(handle_success(final_response));
+                            });
+                        } catch (err) {
+                            return res.json(handle_error(err.message));
+                        }
+                    
+                    }).catch((err) => {
+                        return res.json(handle_error(err.message ? err.message : err))
+                    })
+                }
                 
-                ).then( async response => {
-                    try {
-                        const remote_response = response.data;
-                        NotificationTemplateModel.findById({ 
-                            _id : monitor.notification_template
-                        }, (err, doc) => {
-                            const final_response = {
-                                monitor : remote_response
-                            };
-                            if(doc){
-                                final_response.notification_template = doc;
-                            }
-                            return res.json(handle_success(final_response));
-                        });
-                    } catch (err) {
-                        return res.json(handle_error(err.message));
-                    }
-                
-                }).catch((err) => {
-                    return res.json(handle_error(err.message ? err.message : err))
-                })
             })
-        }else{
-            return res.json(handle_error("You're not authenticated to perform this operation."));
-        }
+        // }else{
+        //     return res.json(handle_error("You're not authenticated to perform this operation."));
+        // }
 
     });
 })
@@ -703,16 +754,39 @@ router.post('/delete/team', async (req, res, next) => {
             }
             const agent = monitor.agent_id
             const monitor_type = monitor.type;
-            axios.post(
-                `${agent.api_url}/api/${monitor.type}/mutate/delete`, // API path
-                {
-                    user_id : user_id,
-                    agent_id : monitor.monitor_ref
-                } // Data to be sent
 
-            ).then( async response => {
+            const sendData = {
+                user_id : user_id,
+                agent_id : monitor.monitor_ref
+            };
+            sendData.api_path = `${agent.api_url}/api/${monitor.type}/mutate/delete`;
+            sendData.api_method = "post";
+            const ws = fetchWebSocket(monitor.agent_id._id);
+            if(ws){
+                console.log("Here");
+                webSocketSendJSON(ws, sendData);
+                ws.on("message", function incoming(response){
+                    const response_json = webSocketRecievedJSON(response);
+                    console.log(response_json)
+                    delete_monitor_in_team(response_json);
+                })
+            }else{
+                axios.post(
+                    sendData.api_path, // API path
+                    sendData // Data to be sent
+    
+                ).then( async response => {
+                    delete_monitor_in_team(response.data);
+    
+                }).catch((err) => {
+                    console.log(err)
+                    return res.json(handle_error(err.message ? err.message : err))
+                })
+            }
+
+            function delete_monitor_in_team(remote_response){
                 try {
-                    const remote_response = response.data;
+                    // const remote_response = response.data;
                     // If monitor could not be created.
                     if(!remote_response.accomplished) return res.json(remote_response);
 
@@ -753,7 +827,7 @@ router.post('/delete/team', async (req, res, next) => {
                             },
                             update_team
                         );
-                        res.json(handle_success({
+                        return res.json(handle_success({
                             message : "Monitor deleted successfully!",
                             monitor : {...monitor.toObject(), ...remote_response}
                         }))
@@ -763,11 +837,7 @@ router.post('/delete/team', async (req, res, next) => {
                 } catch (err) {
                     return res.json(handle_error(err.message));
                 }
-
-            }).catch((err) => {
-                console.log(err)
-                return res.json(handle_error(err.message ? err.message : err))
-            })
+            }
         });
     } catch (err) {
         console.log(err)
@@ -795,16 +865,41 @@ router.post('/delete/user', async (req, res, next) => {
             }
             const agent = monitor.agent_id;
             const monitor_type = monitor.type;
-            axios.post(
-                `${agent.api_url}/api/${monitor.type}/mutate/delete`, // API path
-                {
-                    user_id : user_id,
-                    agent_id : monitor.monitor_ref
-                } // Data to be sent
 
-            ).then( async response => {
+            const sendData = {
+                user_id : user_id,
+                agent_id : monitor.monitor_ref
+            };
+            sendData.api_path = `${agent.api_url}/api/${monitor.type}/mutate/delete`;
+            sendData.api_method = "post";
+            const ws = fetchWebSocket(monitor.agent_id._id);
+            if(ws){
+                webSocketSendJSON(ws, sendData);
+                ws.on("message", function incoming(response){
+                    const response_json = webSocketRecievedJSON(response);
+                    delete_monitor_in_user(response_json);
+                })
+            }else{
+                axios.post(
+                    sendData.api_path, // API path
+                    {
+                        user_id : user_id,
+                        agent_id : monitor.monitor_ref
+                    } // Data to be sent
+    
+                ).then( async response => {
+                    delete_monitor_in_user(response.data);
+    
+                }).catch((err) => {
+                    console.log(err)
+                    return res.json(handle_error(err.message ? err.message : err))
+                })
+            }
+            
+
+            function delete_monitor_in_user(remote_response){
                 try {
-                    const remote_response = response.data;
+                    // const remote_response = response.data;
                     // If monitor could not be created.
                     if(!remote_response.accomplished) return res.json(remote_response);
 
@@ -841,8 +936,9 @@ router.post('/delete/user', async (req, res, next) => {
                             },
                             update_team
                         );
-                    
-                        res.json(handle_success({
+                        const final_response = {...monitor.toObject(), ...remote_response};
+                        final_response._id = monitor._id;
+                        return res.json(handle_success({
                             message : "Monitor deleted successfully!",
                             monitor : {...monitor.toObject(), ...remote_response}
                         }))
@@ -852,11 +948,7 @@ router.post('/delete/user', async (req, res, next) => {
                 } catch (err) {
                     return res.json(handle_error(err.message));
                 }
-
-            }).catch((err) => {
-                console.log(err)
-                return res.json(handle_error(err.message ? err.message : err))
-            })
+            }
         });
     } catch (err) {
         console.log(err)

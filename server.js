@@ -3,7 +3,35 @@ const mongoose = require('mongoose');
 const passport = require('passport');
 const bodyParser = require('body-parser');
 const cors = require("cors");
-const UserModel = require('./models/User');
+
+const routes = require("./routes/auth_routes");
+const secure_routes = require("./routes/secure_routes");
+const team_routes = require("./routes/team_routes");
+const team_secret_routes = require("./routes/team_secret_routes");
+const device_routes = require("./routes/device_routes");
+const device_group_routes = require("./routes/device_group_routes");
+const analytic_group_routes = require("./routes/analytic_group_routes");
+const monitor_routes = require("./routes/monitor_routes");
+const agent_routes = require("./routes/agent_routes");
+const user_routes = require("./routes/user_routes");
+const notif_routes = require("./routes/notification_template_routes");
+
+const { WebSocketServer } = require('ws');
+const { webSocketRecievedJSON } = require('./helpers/plans');
+const url = require('url');
+const { newAgent, removeAgent } = require('./helpers/websocket');
+const wss = new WebSocketServer({port : 8080});
+
+wss.on('connection', (ws, req) => {
+  newAgent(req, ws)
+  ws.on('message', function incoming(message) {
+    console.log('received: %s', webSocketRecievedJSON(message));
+  });
+  // ws.send('[+] Connection established');
+  ws.on('close', () => {
+    removeAgent(req);
+  })
+})
 
 mongoose.connect(
     "mongodb+srv://admin:admin@cluster0.t2yk1.mongodb.net/iManage_central_db?retryWrites=true&w=majority",
@@ -23,17 +51,6 @@ mongoose.Promise = global.Promise;
 
 require('./auth/auth');
 
-const routes = require("./routes/auth_routes");
-const secure_routes = require("./routes/secure_routes");
-const team_routes = require("./routes/team_routes");
-const team_secret_routes = require("./routes/team_secret_routes");
-const device_routes = require("./routes/device_routes");
-const device_group_routes = require("./routes/device_group_routes");
-const analytic_group_routes = require("./routes/analytic_group_routes");
-const monitor_routes = require("./routes/monitor_routes");
-const agent_routes = require("./routes/agent_routes");
-const user_routes = require("./routes/user_routes");
-const notif_routes = require("./routes/notification_template_routes");
 
 const app = express();
 app.use(cors({ credentials: true }))

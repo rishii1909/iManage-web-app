@@ -1,4 +1,5 @@
 const { isValidObjectId } = require("mongoose");
+var ab2str = require('arraybuffer-to-string')
 
 exports.get_capacity = (level) => {
     let users, devices, agents;
@@ -139,3 +140,11 @@ exports.not_found = (object_name) => {
 exports.not_authenticated = this.handle_error("You are not authenticated to perform this operation.");
 
 exports.exclusive_root_user_action = this.handle_error("This action can only be performed by the Root user.");
+
+exports.webSocketSendJSON = (ws, data) => {
+  return ws.send(JSON.stringify(data));
+}
+
+exports.webSocketRecievedJSON = (data) => {
+  return JSON.parse(ab2str(data));
+}
