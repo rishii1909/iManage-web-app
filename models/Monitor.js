@@ -31,7 +31,7 @@ const MonitorSchema = new Schema({
     },
     notification_template : {
         type : Schema.Types.ObjectId,
-        required : true,
+        // required : true,
     }
 }, { versionKey: false })
 
