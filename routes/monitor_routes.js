@@ -339,7 +339,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         });
                         // console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
                         // console.log(monitors);
-
+                        console.log("CURRENT PRIVATE STATUS IS : ", target_agent.private )
                         if(target_agent.private){
                             const ws = fetchWebSocket(target_agent._id);
                             webSocketSendJSON(ws, {monitors});
