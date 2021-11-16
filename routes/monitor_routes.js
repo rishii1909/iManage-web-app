@@ -315,7 +315,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
             _id : {
                 $in : Array.from( team_monitors.keys() ).concat(Object.keys(user_monitors))
             }
-        }).select("api_url");
+        }).select("api_url private");
         if(fetch_urls.length <= 0) return res.json(handle_success([]))
         const team_monitors_keys = Array.from(team_monitors.keys());
         // console.log(team_monitors_keys, team_monitors);
@@ -340,8 +340,8 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         // console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
                         // console.log(monitors);
 
-                        const ws = fetchWebSocket(target_agent._id);
-                        if(ws){
+                        if(target_agent.private){
+                            const ws = fetchWebSocket(target_agent._id);
                             webSocketSendJSON(ws, {monitors});
                             ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
