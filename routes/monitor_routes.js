@@ -345,10 +345,10 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             webSocketSendJSON(ws, {monitors});
                             ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
-                                update_team_after_create_user_monitor(response_json);
-
+                                parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
                             })
                         }else{
+                            console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
                             await axios.post(
                                 `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
                                 {monitors}
@@ -381,67 +381,27 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         const target_agent = fetch_urls.find(obj => {
                             return obj._id == agent_key
                         });
-                        if((target_agent && target_agent.api_url)){
-                            console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
-                        await axios.post(
-                            `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
-                            {monitors}
-                        ).then((response) => {
-                            const resp = response.data;
-                            // console.log("API response : " ,response.data)
-                            test = resp;
-                            if(resp.accomplished){
-                                for (const key in resp.response) {
-                                    if (Object.hasOwnProperty.call(resp.response, key)) {
-                                        const rec = resp.response[key];
-                                        // Adding to level 1 - starts
-                                        if(rec._id.monitor_status == "false") console.log(rec._id.monitor_status);
-                                        if(binary_monitors[monitor_type_key] === true){
-                                            final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
-                                        }else{
-                                            final_response_object.level_1.three_states[rec._id.monitor_status] += rec.count
-                                        }
-                                        // Adding to level 1 - ends
-                                    
-                                        // Adding to level 2 - starts
-                                        let device_category = null;
-                                        if(binary_monitors[monitor_type_key] == true){
-                                            device_category = "two_states";
-                                            rec._id.monitor_status = rec._id.monitor_status ? 0 : 1;
-                                        }else{
-                                            device_category = "three_states";
-                                        }
-                                        
-                                        if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
-                                            final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
-                                        }else{
-                                            final_response_object.level_2[device_category][rec._id.device] = {
-                                                [rec._id.monitor_status] : rec.count
-                                            }
-                                        }
-                                        // Adding to level 2 - ends
-                                    
-                                        // Adding to level 3 - starts
-                                        if( final_response_object.level_3[rec._id.device] && final_response_object.level_3[rec._id.device][rec._id.monitor_ref] ){
-                                            final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
-                                                label : rec._id.label,
-                                                monitor_status : rec._id.monitor_status
-                                            };
-                                        }else{
-                                            final_response_object.level_3[rec._id.device] = {
-                                                [rec._id.monitor_ref] : {
-                                                    label : rec._id.label,
-                                                    monitor_status : rec._id.monitor_status
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                        console.log("CURRENT PRIVATE STATUS IS : ", target_agent.private, target_agent._id )
+                        if(target_agent.private){
+                            const ws = fetchWebSocket(target_agent._id);
+                            if(ws){
+                                webSocketSendJSON(ws, {monitors});
+                                ws.on("message", function incoming(response){
+                                const response_json = webSocketRecievedJSON(response);
+                                parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
+                            })
                             }
-                        }).catch((err) => {
-                            console.log(err)
-                            console.log(handle_error(err.message ? err.message : err))
-                        })
+                        }else{
+                            console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
+                            await axios.post(
+                                `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
+                                {monitors}
+                            ).then((response) => {
+                                const resp = response.data;
+                                parseDashboardDataResponse(resp, final_response_object, monitor_type_key);
+                            }).catch((err) => {
+                                console.log(handle_error(err.message ? err.message : err))
+                            })
                         }
                         // Add check for enabled/disabled monitors here later.
                     }
