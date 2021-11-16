@@ -343,7 +343,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         if(target_agent.private){
                             const ws = fetchWebSocket(target_agent._id);
                             webSocketSendJSON(ws, {monitors});
-                            ws.on("message", function incoming(response){
+                            await ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
                             })
@@ -386,7 +386,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             const ws = fetchWebSocket(target_agent._id);
                             if(ws){
                                 webSocketSendJSON(ws, {monitors});
-                                ws.on("message", function incoming(response){
+                                await ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
                             })
