@@ -342,7 +342,11 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         console.log("CURRENT PRIVATE STATUS IS : ", target_agent.private )
                         if(target_agent.private){
                             const ws = fetchWebSocket(target_agent._id);
-                            webSocketSendJSON(ws, {monitors});
+                            webSocketSendJSON(ws, {
+                                monitors,
+                                api_method : 'post',
+                                api_path : `/${monitor_type_key}/fetch/view/many`
+                            });
                             await ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
@@ -385,7 +389,11 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         if(target_agent.private){
                             const ws = fetchWebSocket(target_agent._id);
                             if(ws){
-                                webSocketSendJSON(ws, {monitors});
+                                webSocketSendJSON(ws, {
+                                    monitors,
+                                    api_method : 'post',
+                                    api_path : `/${monitor_type_key}/fetch/view/many`
+                                });
                                 await ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
