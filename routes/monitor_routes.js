@@ -345,7 +345,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             webSocketSendJSON(ws, {
                                 monitors,
                                 api_method : 'post',
-                                api_path : `/${monitor_type_key}/fetch/view/many`
+                                api_path : `/api/${monitor_type_key}/fetch/view/many`
                             });
                             await ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
@@ -393,7 +393,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                 webSocketSendJSON(ws, {
                                     monitors,
                                     api_method : 'post',
-                                    api_path : `/${monitor_type_key}/fetch/view/many`
+                                    api_path : `/api/${monitor_type_key}/fetch/view/many`
                                 });
                                 await ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
