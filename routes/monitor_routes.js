@@ -349,6 +349,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             });
                             await ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
+                                console.log(response_json)
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
                             })
                         }else{
@@ -396,6 +397,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                 });
                                 await ws.on("message", function incoming(response){
                                 const response_json = webSocketRecievedJSON(response);
+                                console.log(response_json)
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
                             })
                             }
