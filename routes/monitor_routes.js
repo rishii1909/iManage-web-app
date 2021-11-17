@@ -379,9 +379,10 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         const target_agent = fetch_urls.find(obj => {
                             return obj._id == agent_key
                         });
-                        console.log("CURRENT PRIVATE STATUS IS : ", target_agent.private, target_agent._id )
+                        console.log(target_agent.private, target_agent._id )
                         if(target_agent.private){
                             const ws = fetchWebSocket(target_agent._id);
+                            console.log("Websocket for this agent" + (ws ? "found" : "not found"))
                             if(ws){
                                 const response_json = await webSocketSendJSON(ws, {
                                     monitors,
