@@ -54,7 +54,7 @@ router.post('/create/team', async (req, res, next) => {
             }
             console.log(creds)
 
-            if(!data.private){
+            if(!data.private && parseInt(data.type) != 2){
                 try {
                     let connection = await ssh.connect(creds);
                     if(!connection.isConnected){
@@ -144,7 +144,7 @@ router.post('/create/user', async (req, res, next) => {
                 ...(data.passphrase) && { passphrase : data.passphrase },
             }
 
-            if(!data.private){
+            if(!data.private && parseInt(data.type) != 2){
                 try {
                     let connection = await ssh.connect(creds);
                     if(!connection.isConnected){
