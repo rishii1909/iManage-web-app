@@ -389,7 +389,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                     api_method : 'post',
                                     api_path : `/api/${monitor_type_key}/fetch/view/many`
                                 });
-                                console.log(repsonse_json)
+                                console.log(response_json)
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
                             }
                         }else{
