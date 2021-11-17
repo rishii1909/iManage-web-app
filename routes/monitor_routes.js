@@ -75,12 +75,9 @@ router.post('/create/team', async (req, res, next) => {
                 console.log(agent._id);
                 const ws = fetchWebSocket(agent._id);
                 if(!ws) return res.json(handle_error("Remote agent " + agent.name + " is not connected to the central server."));
-                webSocketSendJSON(ws, monitor_info);
-                ws.on("message", function incoming(response){
-                    const response_json = webSocketRecievedJSON(response);
-                    update_team_after_create_team_monitor(response_json);
-                    
-                })
+
+                const response_json = await webSocketSendJSON(ws, monitor_info);
+                update_team_after_create_team_monitor(response_json);
             }
             else {
                 axios.post(
@@ -196,12 +193,9 @@ router.post('/create/user', async (req, res, next) => {
                 // console.log(agent._id);
                 const ws = fetchWebSocket(agent._id);
                 if(!ws) return res.json(handle_error("Remote agent " + agent.name + " is not connected to the central server."));
-                webSocketSendJSON(ws, monitor_info);
-                ws.on("message", function incoming(response){
-                    const response_json = webSocketRecievedJSON(response);
-                    update_team_after_create_user_monitor(response_json);
-                    
-                })
+
+                const response_json = await webSocketSendJSON(ws, monitor_info);
+                update_team_after_create_user_monitor(response_json);
             }else{
                 axios.post(
 
@@ -342,16 +336,14 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         console.log("CURRENT PRIVATE STATUS IS : ", target_agent.private )
                         if(target_agent.private){
                             const ws = fetchWebSocket(target_agent._id);
-                            webSocketSendJSON(ws, {
-                                monitors,
-                                api_method : 'post',
-                                api_path : `/api/${monitor_type_key}/fetch/view/many`
-                            });
-                            await ws.on("message", function incoming(response){
-                                const response_json = webSocketRecievedJSON(response);
-                                console.log(response_json)
+                            if(ws){
+                                const response_json = await webSocketSendJSON(ws, {
+                                    monitors,
+                                    api_method : 'post',
+                                    api_path : `/api/${monitor_type_key}/fetch/view/many`
+                                });
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
-                            })
+                            }
                         }else{
                             console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
                             await axios.post(
@@ -390,16 +382,12 @@ router.post('/dashboard/showcase', (req, res, next) => {
                         if(target_agent.private){
                             const ws = fetchWebSocket(target_agent._id);
                             if(ws){
-                                webSocketSendJSON(ws, {
+                                const response_json = await webSocketSendJSON(ws, {
                                     monitors,
                                     api_method : 'post',
                                     api_path : `/api/${monitor_type_key}/fetch/view/many`
                                 });
-                                await ws.on("message", function incoming(response){
-                                const response_json = webSocketRecievedJSON(response);
-                                console.log(response_json)
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
-                            })
                             }
                         }else{
                             console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
@@ -468,11 +456,8 @@ router.post('/update/team', (req, res, next) => {
 
                 const ws = fetchWebSocket(doc.agent_id._id);
                 if(ws){
-                    webSocketSendJSON(ws, sendData);
-                    ws.on("message", function incoming(response){
-                        const response_json = webSocketRecievedJSON(response);
-                        return res.json(response_json);
-                    })
+                    const response_json = await webSocketSendJSON(ws, sendData);
+                    return res.json(response_json);
                 }else{
                     await axios.post(
                         `${api}/api/${doc.type}/mutate/update`,
@@ -531,11 +516,9 @@ router.post('/update/user', (req, res, next) => {
 
                 const ws = fetchWebSocket(doc.agent_id._id);
                 if(ws){
-                    webSocketSendJSON(ws, sendData);
-                    ws.on("message", function incoming(response){
-                        const response_json = webSocketRecievedJSON(response);
-                        return res.json(response_json);
-                    })
+                    const response_json = await webSocketSendJSON(ws, sendData);
+                    return res.json(response_json);
+                    
                 }else{
                     await axios.post(
                         `${api}/api/${doc.type}/mutate/update`,
@@ -662,11 +645,8 @@ router.post('/enumerate/monitor', (req, res, next) => {
 
                 const ws = fetchWebSocket(monitor.agent_id._id);
                 if(ws){
-                    webSocketSendJSON(ws, sendData);
-                    ws.on("message", function incoming(response){
-                        const response_json = webSocketRecievedJSON(response);
-                        return res.json(response_json);
-                    })
+                    const response_json = await webSocketSendJSON(ws, sendData);
+                    return res.json(response_json);
                 }else{
                     axios.post(
                         `${monitor.agent_id.api_url}/api/${monitor.type}/fetch/view/one`, // API path
@@ -733,13 +713,8 @@ router.post('/delete/team', async (req, res, next) => {
             sendData.api_method = "post";
             const ws = fetchWebSocket(monitor.agent_id._id);
             if(ws){
-                console.log("Here");
-                webSocketSendJSON(ws, sendData);
-                ws.on("message", function incoming(response){
-                    const response_json = webSocketRecievedJSON(response);
-                    console.log(response_json)
-                    delete_monitor_in_team(response_json);
-                })
+                const response_json = await webSocketSendJSON(ws, sendData);
+                delete_monitor_in_team(response_json);
             }else{
                 axios.post(
                     sendData.api_path, // API path
@@ -844,11 +819,8 @@ router.post('/delete/user', async (req, res, next) => {
             sendData.api_method = "post";
             const ws = fetchWebSocket(monitor.agent_id._id);
             if(ws){
-                webSocketSendJSON(ws, sendData);
-                ws.on("message", function incoming(response){
-                    const response_json = webSocketRecievedJSON(response);
-                    delete_monitor_in_user(response_json);
-                })
+                const response_json = await webSocketSendJSON(ws, sendData);
+                delete_monitor_in_user(response_json);
             }else{
                 axios.post(
                     sendData.api_path, // API path
@@ -927,6 +899,12 @@ router.post('/delete/user', async (req, res, next) => {
 })
 
 
+
+router.post('/remote', async (req, res, next) => {
+    const data = req.body;
+    if(!fetchWebSocket(data.agent_id)) return res.json(handle_error("Remote agent is not connected to the central server."));
+    
+})
 
 router.post('/enumerate', async (req, res, next) => {
     const data = req.body;

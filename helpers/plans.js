@@ -141,8 +141,18 @@ exports.not_authenticated = this.handle_error("You are not authenticated to perf
 
 exports.exclusive_root_user_action = this.handle_error("This action can only be performed by the Root user.");
 
-exports.webSocketSendJSON = (ws, data) => {
-  return ws.send(JSON.stringify(data));
+exports.webSocketSendJSON = async (ws, data) => {
+  return new Promise(function (resolve, reject){
+    try {
+      ws.send(JSON.stringify(data));
+      ws.on("message", function incoming(response){
+      // const response_json = webSocketRecievedJSON(response);
+      resolve(JSON.parse(ab2str(response)));
+    })
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
 
 exports.webSocketRecievedJSON = (data) => {
