@@ -183,7 +183,7 @@ router.post('/create/user', async (req, res, next) => {
             // Add code here to check for permissions. Skipped for now.
 
             // Call the remote agent API to create a new monitor.
-
+            console.log("Is agent private : ", agent.private)
             if(agent.private == true){
                 // const urlInfo = (new URL(agent.api_url));
                 // domain = urlInfo.hostname.replace('www.','');
