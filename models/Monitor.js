@@ -7,7 +7,7 @@ const MonitorSchema = new Schema({
     agent_id : {
         type : Schema.Types.ObjectId,
         ref : 'Agent',
-        required : true,
+        required : false,
     },
     device_id : {
         type : Schema.Types.ObjectId,
