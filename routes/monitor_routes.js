@@ -902,8 +902,11 @@ router.post('/delete/user', async (req, res, next) => {
 
 router.post('/remote', async (req, res, next) => {
     const data = req.body;
-    if(!fetchWebSocket(data.agent_id)) return res.json(handle_error("Remote agent is not connected to the central server."));
-    
+    const ws = fetchWebSocket(data.agent_id);
+    if(!ws) return res.json(handle_error("Remote agent is not connected to the central server."));
+
+    const response = await webSocketSendJSON(ws, data);
+    return res.json(response);
 })
 
 router.post('/enumerate', async (req, res, next) => {
