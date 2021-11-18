@@ -644,7 +644,7 @@ router.post('/enumerate/monitor', (req, res, next) => {
             }).exec( async (err, monitor) => {
                 // Call the remote agent API.
                 const sendData = {};
-                sendData.api_path = `${monitor.agent_id.api_url}/api/${monitor.type}/fetch/view/one`;
+                sendData.api_path = `/api/${monitor.type}/fetch/view/one`;
                 sendData.api_method = "post";
                 sendData.agent_id = monitor.monitor_ref;
 
@@ -718,6 +718,7 @@ router.post('/delete/team', async (req, res, next) => {
             sendData.api_method = "post";
             const ws = fetchWebSocket(monitor.agent_id._id);
             if(ws){
+                sendData.api_path = `/api/${monitor.type}/mutate/delete`;
                 const response_json = await webSocketSendJSON(ws, sendData);
                 delete_monitor_in_team(response_json);
             }else{
@@ -824,6 +825,7 @@ router.post('/delete/user', async (req, res, next) => {
             sendData.api_method = "post";
             const ws = fetchWebSocket(monitor.agent_id._id);
             if(ws){
+                sendData.api_path = `/api/${monitor.type}/mutate/delete`;
                 const response_json = await webSocketSendJSON(ws, sendData);
                 delete_monitor_in_user(response_json);
             }else{
