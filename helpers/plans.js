@@ -146,6 +146,7 @@ exports.webSocketSendJSON = async (ws, data) => {
     try {
       ws.send(JSON.stringify(data));
       ws.on("message", function incoming(response){
+        console.log("recieved : ", response)
       // const response_json = webSocketRecievedJSON(response);
       resolve(JSON.parse(ab2str(response)));
     })

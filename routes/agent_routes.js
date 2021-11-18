@@ -109,13 +109,13 @@ router.post('/create/user', async (req, res, next) => {
             if(team.agent_occupancy >= caps.agents) return res.json(maximum_limit_error(verbose))
 
             const final_agent_object = {
-                ...(data.name) && { name : data.name },
-                ...(data.private) && { private : data.private },
-                ...(data.api_url) && { api_url : data.api_url },
-                ...(data.additional_info) && { additional_info : data.additional_info },
-                ...(data.team_id) && { team_id : data.team_id },
-                ...(data.type) && { type : data.type },
-                team_id : team_id
+                ...(data.name) && {name : data.name},
+                ...(data.team_id) && {team_id : data.team_id},
+                ...(data.snmp) && {snmp : data.snmp},
+                ...(data.type) && {type : parseInt(data.type)},
+                ...(data.private) && {type : data.private},
+                ...(data.api_url) && {type : data.api_url},
+                ...(data.additional_info) && {type : data.additional_info},
             }
 
             try {
@@ -183,7 +183,7 @@ router.post('/update/team', async (req, res, next) => {
                 ...(data.name) && {name : data.name},
                 ...(data.team_id) && {team_id : data.team_id},
                 ...(data.snmp) && {snmp : data.snmp},
-                ...(data.type) && {type : data.type},
+                ...(data.type) && {type : parseInt(data.type)},
                 ...(data.private) && {type : data.private},
                 ...(data.api_url) && {type : data.api_url},
                 ...(data.additional_info) && {type : data.additional_info},
