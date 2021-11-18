@@ -184,6 +184,9 @@ router.post('/update/team', async (req, res, next) => {
                 ...(data.team_id) && {team_id : data.team_id},
                 ...(data.snmp) && {snmp : data.snmp},
                 ...(data.type) && {type : data.type},
+                ...(data.private) && {type : data.private},
+                ...(data.api_url) && {type : data.api_url},
+                ...(data.additional_info) && {type : data.additional_info},
                 
             }
 
@@ -246,7 +249,10 @@ router.post('/update/user', async (req, res, next) => {
                 ...(data.team_id) && {team_id : data.team_id},
                 ...(data.snmp) && {snmp : data.snmp},
                 ...(data.type) && {type : data.type},
-                
+                ...(data.private) && {type : data.private},
+                ...(data.api_url) && {type : data.api_url},
+                ...(data.additional_info) && {type : data.additional_info},
+
             }
 
             // const creds = {

@@ -192,9 +192,11 @@ router.post('/create/user', async (req, res, next) => {
                 // const ws = new WebSocket(webSocketPath);
                 // console.log(agent._id);
                 const ws = fetchWebSocket(agent._id);
-                if(!ws) return res.json(handle_error("Remote agent " + agent.name + " is not connected to the central server."));
 
+                if(!ws) return res.json(handle_error("Remote agent " + agent.name + " is not connected to the central server."));
+                
                 const response_json = await webSocketSendJSON(ws, monitor_info);
+                console.log(response_json)
                 update_team_after_create_user_monitor(response_json);
             }else{
                 axios.post(
@@ -342,7 +344,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
                                     api_method : 'post',
                                     api_path : `/api/${monitor_type_key}/fetch/view/many`
                                 });
-                                console.log(repsonse_json)
+                                console.log(response_json)
                                 parseDashboardDataResponse(response_json, final_response_object, monitor_type_key);
                             }
                         }else{
@@ -909,6 +911,7 @@ router.post('/remote', async (req, res, next) => {
     if(!ws) return res.json(handle_error("Remote agent is not connected to the central server."));
 
     const response = await webSocketSendJSON(ws, data);
+    console.log(response);
     return res.json(response);
 })
 
