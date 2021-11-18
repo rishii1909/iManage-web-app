@@ -113,9 +113,9 @@ router.post('/create/user', async (req, res, next) => {
                 ...(data.team_id) && {team_id : data.team_id},
                 ...(data.snmp) && {snmp : data.snmp},
                 ...(data.type) && {type : parseInt(data.type)},
-                ...(data.private) && {type : data.private},
-                ...(data.api_url) && {type : data.api_url},
-                ...(data.additional_info) && {type : data.additional_info},
+                ...(data.private) && {private : data.private},
+                ...(data.api_url) && {api_url : data.api_url},
+                ...(data.additional_info) && {additional_info : data.additional_info},
             }
 
             try {
