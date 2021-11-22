@@ -10,7 +10,7 @@ const router = express.Router();
 router.post('/add', async (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
-    const users = data.users;
+    let users = data.users;
     const team_id = data.team_id;
     if(!Array.isArray(users)) return res.json(handle_error("Users parameter is not an array."))
     if(users.length == 0) return res.json(handle_error("No Users selected."))
@@ -28,10 +28,11 @@ router.post('/add', async (req, res, next) => {
             let root_user = team.root;
             // Checks.
             if(!is_root(root_user, user_id)){
-                return res.json(handle_error("Only the root user can add new device admins."))
+                return res.json(handle_error("Only the root user can add new monitoring admins."))
             }
             // Actual operations.
-            
+            users = users.filter(user => !team.monitoring_admins.includes(user))
+            if(!users.length) return res.json(handle_success("Selected users are now a monitoring admin!"));
             TeamModel.updateOne({
                 _id: team_id
             }, {
@@ -45,7 +46,7 @@ router.post('/add', async (req, res, next) => {
                 if(err){
                     return res.json(handle_error(err));
                 }else{
-                    return res.json(handle_success("Selected users are now a device admin!"))
+                    return res.json(handle_success("Selected users are now a monitoring admin!"))
                 }
             });
         });
@@ -69,7 +70,7 @@ router.post('/revoke', async (req, res, next) => {
             let root_user = team.root;
             // Checks.
             if(!is_root(root_user, user_id)){
-                return res.json(handle_error("Only the root user can revoke device admin permissions."))
+                return res.json(handle_error("Only the root user can revoke monitoring admin permissions."))
             }
             // Actual operations.
             TeamModel.updateOne({
@@ -85,7 +86,7 @@ router.post('/revoke', async (req, res, next) => {
                 if(err){
                     return res.json(handle_generated_error(err));
                 }else{
-                    return res.json(handle_success("Device admin privileges have been revoked for selected users."))
+                    return res.json(handle_success("monitoring admin privileges have been revoked for selected users."))
                 }
             });
 

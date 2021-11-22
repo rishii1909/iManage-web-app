@@ -643,6 +643,8 @@ router.post('/enumerate/monitor', (req, res, next) => {
                 select : 'api_url -_id'
             }).exec( async (err, monitor) => {
                 // Call the remote agent API.
+                if(err) return res.json(handle_generated_error(err));
+                if(!monitor) return res.json(not_found("Monitor"));
                 const sendData = {};
                 sendData.api_path = `/api/${monitor.type}/fetch/view/one`;
                 sendData.api_method = "post";

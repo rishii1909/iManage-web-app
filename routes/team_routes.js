@@ -37,6 +37,18 @@ router.post('/enumerate', async (req, res, next) => {
                 {
                     path : "device_groups",
                     select : "name"
+                },
+                {
+                    path : "billing_admins",
+                    select : "name email"
+                },
+                {
+                    path : "monitoring_admins",
+                    select : "name email"
+                },
+                {
+                    path : "sudoers_admins",
+                    select : "name email"
                 }
             ]
         )

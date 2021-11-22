@@ -31,7 +31,8 @@ router.post('/add', async (req, res, next) => {
                 return res.json(handle_error("Only the root user can add new device admins."))
             }
             // Actual operations.
-            
+            users = users.filter(user => !team.sudoers.includes(user))
+            if(!users.length) return res.json(handle_success("Selected users are now a monitoring admin!"));
             TeamModel.updateOne({
                 _id: team_id
             }, {

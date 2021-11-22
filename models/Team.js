@@ -21,7 +21,8 @@ const TeamSchema = new Schema({
         default : 0
     },
     users : {
-        type : Map,
+        type : Array,
+        default : []
     },
     devices : { // team objects go here
         type : Array,

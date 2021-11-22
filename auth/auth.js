@@ -55,7 +55,9 @@ passport.use(
                     await TeamModel.findOneAndUpdate({
                         _id: secret.team_id,
                     }, {
-                        [`users.${user._id}`]: true,
+                        $push : {
+                            users : user._id
+                        }
                     }, (err, team) => {
                         if (err) {
                             console.log(`Error: ` + err)
