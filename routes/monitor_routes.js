@@ -621,9 +621,8 @@ router.post('/enumerate/monitor', (req, res, next) => {
         _id : team_id
     }, async (err, team) => {
 
-        if(!team || err){
-            res.json(handle_error("Could not retrieve valid data from database."));
-        }
+        if(!team) return res.json(not_found("Team"));
+        if(err) return res.json(handle_generated_error(err))
     
         let isRoot = is_root(team.root, user_id);
         // if(!team.monitors.has(monitor_id)) return res.json(handle_error("Monitor not found in your Team"));
