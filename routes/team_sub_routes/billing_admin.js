@@ -2,6 +2,7 @@ const express = require('express');
 
 const TeamModel = require('../../models/Team');
 const { handle_success, handle_error, is_root, no_docs_or_error, handle_generated_error } = require('../../helpers/plans');
+const UserModel = require('../../models/User');
 
 const router = express.Router();
 
@@ -97,4 +98,27 @@ router.post('/revoke', async (req, res, next) => {
 })
 
 
+router.post('/enumerate', async (req, res, next) => {
+    const data = req.body;
+    try {
+        await TeamModel.findById({_id : data.team_id}, async (err, team) => {
+           if(!team) return res.json(not_found("Team"));
+           if(err) return res.json(handle_generated_error(err))
+            UserModel.find({ 
+                _id: {
+                    $in : team.billing_admins
+                }
+            },
+            "name email", 
+            (err, users) => {
+               if(err){
+                   return res.json(handle_generated_error(err));
+               }
+               return res.json(handle_success(users));
+            });
+        });
+    } catch (err) {
+        // console.log(handle_error({err}));
+    }
+})
 module.exports = router
