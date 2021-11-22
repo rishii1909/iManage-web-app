@@ -639,7 +639,7 @@ router.post('/enumerate/monitor', (req, res, next) => {
             })
             .populate({
                 path : 'agent_id',
-                select : 'api_url -_id'
+                select : 'api_url -_id private'
             }).exec( async (err, monitor) => {
                 // Call the remote agent API.
                 if(err) return res.json(handle_generated_error(err));
@@ -648,12 +648,19 @@ router.post('/enumerate/monitor', (req, res, next) => {
                 sendData.api_path = `/api/${monitor.type}/fetch/view/one`;
                 sendData.api_method = "post";
                 sendData.agent_id = monitor.monitor_ref;
-
-                const ws = fetchWebSocket(monitor.agent_id._id);
-                if(ws){
-                    const response_json = await webSocketSendJSON(ws, sendData);
-                    return res.json(response_json);
-                }else{
+                if(monitor.agent_id.private){
+                    const ws = fetchWebSocket(monitor.agent_id._id);
+                    if(ws){
+                        const response_json = await webSocketSendJSON(ws, sendData);
+                        return res.json(response_json);
+                    }else{
+                        return res.json(handle_error({
+                            message : "Remote agent is not accessible.",
+                            metadata : monitor
+                        }))
+                    }
+                }
+                else{
                     axios.post(
                         `${monitor.agent_id.api_url}/api/${monitor.type}/fetch/view/one`, // API path
                         {agent_id : monitor.monitor_ref} // Data to be sent

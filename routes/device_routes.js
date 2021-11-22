@@ -427,6 +427,7 @@ router.post('/enumerate/device', (req, res, next) => {
     if( found_invalid_ids([user_id, team_id, device_id]).invalid ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
+    console.log(device_id)
 
     TeamModel.findById({
         _id : team_id
@@ -449,7 +450,6 @@ router.post('/enumerate/device', (req, res, next) => {
                     _id : device_id
                 }, 
             ).select('-creds -username -team');
-
         }
         if(!device) return res.json(handle_error("Device not found"))
         if(data.show_monitors){
@@ -502,6 +502,8 @@ router.post('/enumerate/device', (req, res, next) => {
             //     }
             // }
             
+        }else{
+            return res.json(handle_success(device))
         }
         
 
