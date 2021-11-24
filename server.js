@@ -18,6 +18,9 @@ const notif_routes = require("./routes/notification_template_routes");
 
 const { WebSocketServer } = require('ws');
 const http = require('http');
+const https = require('https');
+const path = require('path');
+const fs = require('fs');
 const { webSocketRecievedJSON } = require('./helpers/plans');
 const url = require('url');
 const { newAgent, removeAgent } = require('./helpers/websocket');
@@ -96,10 +99,13 @@ app.use(function (req, res, next) {
 //   console.log("Server initiated at port : " + (process.env.PORT || 3001))
 // })
 
-const httpServer = http.createServer(app)
+const httpsServer = https.createServer({
+  key: fs.readFileSync(path.join(__dirname, 'cert', 'key.pem')),
+  cert: fs.readFileSync(path.join(__dirname, 'cert', 'cert.pem'))
+}, app)
 
 
-const wss = new WebSocketServer({server : httpServer});
+const wss = new WebSocketServer({server : httpsServer});
 
 // console.log(wss)
 wss.on('connection', (ws, req) => {
@@ -113,6 +119,6 @@ wss.on('connection', (ws, req) => {
   })
 })
 
-httpServer.listen(process.env.PORT || 3001, () => {
+httpsServer.listen(process.env.PORT || 3001, () => {
   console.log("Server initiated at port : " + (process.env.PORT || 3001))
 })
