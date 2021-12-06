@@ -58,7 +58,11 @@ exports.parseDashboardDataResponse = (resp, final_response_object, monitor_type_
         }
     }
 }
-
+function stats(status, binary){
+    if(status == 0) return "OK";
+    if(status == 1) return binary ? "Failure" : "Warning";
+    if(status == 2) return "Failure"
+}
 exports.emitNotification = (nf) => {
     console.log("Notification emit event triggered")
     MonitorModel.findOne({
@@ -71,16 +75,17 @@ exports.emitNotification = (nf) => {
         let notif_header = monitor.notification_template.header;
         let notif_body = monitor.notification_template.body;
         notif_header = notif_header.replace("<%Monitor%>", nf.monitor_name);
-        notif_header = notif_header.replace("<%Status%>", nf.current_monitor_status);
+        notif_header = notif_header.replace("<%Status%>", stats(nf.current_monitor_status, nf.is_binary));
         notif_header = notif_header.replace("<%EventDT%>", nf.event_dt);
         notif_header = notif_header.replace("<%EventMessage%>", nf.alert_verbose);
         notif_body = notif_body.replace("<%Monitor%>", nf.monitor_name);
-        notif_body = notif_body.replace("<%Status%>", nf.current_monitor_status);
+        notif_body = notif_body.replace("<%Status%>", stats(nf.current_monitor_status, nf.is_binary));
         notif_body = notif_body.replace("<%EventDT%>", nf.event_dt);
         notif_body = notif_body.replace("<%EventMessage%>", nf.alert_verbose);
         let template = {
             header : notif_header,
-            body : notif_body
+            body : notif_body,
+            ...(nf.top) && {top : nf.top}
         }
         console.log(template)
         notif_users.push(monitor.creator)

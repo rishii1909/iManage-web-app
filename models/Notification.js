@@ -9,6 +9,7 @@ const NotificationSchema = new Schema({
     previous_monitor_status : Number,
     current_monitor_status : Number,
     monitor_ref : String,
+    top : String,
     is_binary : Boolean
 
 }, { versionKey: false })
