@@ -68,19 +68,20 @@ exports.emitNotification = (nf) => {
             return console.log(`[${nf.monitor_ref}] Notification emit error - Monitor not found.`)
         }
         let notif_users = []
+        let notif_header = monitor.notification_template.header;
+        let notif_body = monitor.notification_template.body;
+        notif_header.replace("<%Monitor%>", nf.monitor_name);
+        notif_header.replace("<%Status%>", nf.current_monitor_status);
+        notif_header.replace("<%EventDT%>", nf.event_dt);
+        notif_header.replace("<%EventMessage%>", nf.alert_verbose);
+        notif_body.replace("<%Monitor%>", nf.monitor_name);
+        notif_body.replace("<%Status%>", nf.current_monitor_status);
+        notif_body.replace("<%EventDT%>", nf.event_dt);
+        notif_body.replace("<%EventMessage%>", nf.alert_verbose);
         let template = {
-            header : monitor.notification_template.header,
-            body : monitor.notification_template.body
+            header : notif_header,
+            body : notif_body
         }
-        console.log(template)
-        template.header.replace("<%Monitor%>", nf.monitor_name);
-        template.header.replace("<%Status%>", nf.current_monitor_status);
-        template.header.replace("<%EventDT%>", nf.event_dt);
-        template.header.replace("<%EventMessage%>", nf.alert_verbose);
-        template.body.replace("<%Monitor%>", nf.monitor_name);
-        template.body.replace("<%Status%>", nf.current_monitor_status);
-        template.body.replace("<%EventDT%>", nf.event_dt);
-        template.body.replace("<%EventMessage%>", nf.alert_verbose);
         console.log(template)
         notif_users.push(monitor.creator)
         if(monitor.assigned_users && monitor.assigned_users.length > 0){
