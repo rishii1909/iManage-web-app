@@ -3,12 +3,13 @@ const localStrategy = require('passport-local').Strategy;
 const UserModel = require('../models/User');
 const TeamModel = require('../models/Team');
 const AgentModel = require('../models/Agent')
+const NotificationTemplate = require('../models/NotificationTemplate');
 const TeamSecretModel = require('../models/TeamSecret');
 const JWTstrategy = require('passport-jwt').Strategy;
 const ExtractJWT = require('passport-jwt').ExtractJwt;
 
 const cloud_agent_id = "61a35d2722fd3300162c2bb1";
-
+const default_template_id = "";
 
 passport.use(
     'register',
@@ -38,6 +39,20 @@ passport.use(
                        console.log(`Error: ` + err)
                    }
                 });
+                
+                const template = await NotificationTemplateModel.create({
+                    name : "iManage Default template",
+                    header : "<%Monitor%> Alert",
+                    body : "Monitor status has changed to <%Status%>.\n Advisory to check the resource. \n<%EventDT%>"
+                });
+                if(template){
+                    UserModel.findOneAndUpdate({
+                        _id: user._id,
+                    }, {
+                        $push : {[`notification_templates`] : template._id.toString()},
+                    });
+                }
+
                 console.log(team._id)
                 await TeamModel.findByIdAndUpdate(
                     {_id : team._id}, 
