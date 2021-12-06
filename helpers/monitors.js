@@ -70,14 +70,14 @@ exports.emitNotification = (nf) => {
         let notif_users = []
         let notif_header = monitor.notification_template.header;
         let notif_body = monitor.notification_template.body;
-        notif_header.replace("<%Monitor%>", nf.monitor_name);
-        notif_header.replace("<%Status%>", nf.current_monitor_status);
-        notif_header.replace("<%EventDT%>", nf.event_dt);
-        notif_header.replace("<%EventMessage%>", nf.alert_verbose);
-        notif_body.replace("<%Monitor%>", nf.monitor_name);
-        notif_body.replace("<%Status%>", nf.current_monitor_status);
-        notif_body.replace("<%EventDT%>", nf.event_dt);
-        notif_body.replace("<%EventMessage%>", nf.alert_verbose);
+        notif_header = notif_header.replace("<%Monitor%>", nf.monitor_name);
+        notif_header = notif_header.replace("<%Status%>", nf.current_monitor_status);
+        notif_header = notif_header.replace("<%EventDT%>", nf.event_dt);
+        notif_header = notif_header.replace("<%EventMessage%>", nf.alert_verbose);
+        notif_body = notif_body.replace("<%Monitor%>", nf.monitor_name);
+        notif_body = notif_body.replace("<%Status%>", nf.current_monitor_status);
+        notif_body = notif_body.replace("<%EventDT%>", nf.event_dt);
+        notif_body = notif_body.replace("<%EventMessage%>", nf.alert_verbose);
         let template = {
             header : notif_header,
             body : notif_body
