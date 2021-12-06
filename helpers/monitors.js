@@ -68,10 +68,11 @@ exports.emitNotification = (nf) => {
             return console.log(`[${nf.monitor_ref}] Notification emit error - Monitor not found.`)
         }
         let notif_users = []
-        const template = {
+        let template = {
             header : monitor.notification_template.header,
             body : monitor.notification_template.body
         }
+        console.log(template)
         template.header.replace("<%Monitor%>", nf.monitor_name);
         template.header.replace("<%Status%>", nf.current_monitor_status);
         template.header.replace("<%EventDT%>", nf.event_dt);
@@ -80,6 +81,7 @@ exports.emitNotification = (nf) => {
         template.body.replace("<%Status%>", nf.current_monitor_status);
         template.body.replace("<%EventDT%>", nf.event_dt);
         template.body.replace("<%EventMessage%>", nf.alert_verbose);
+        console.log(template)
         notif_users.push(monitor.creator)
         if(monitor.assigned_users && monitor.assigned_users.length > 0){
             notif_users.concat(monitor.assigned_users);
