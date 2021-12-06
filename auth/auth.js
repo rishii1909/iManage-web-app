@@ -3,7 +3,7 @@ const localStrategy = require('passport-local').Strategy;
 const UserModel = require('../models/User');
 const TeamModel = require('../models/Team');
 const AgentModel = require('../models/Agent')
-const NotificationTemplate = require('../models/NotificationTemplate');
+const NotificationTemplateModel = require('../models/NotificationTemplate');
 const TeamSecretModel = require('../models/TeamSecret');
 const JWTstrategy = require('passport-jwt').Strategy;
 const ExtractJWT = require('passport-jwt').ExtractJwt;
@@ -45,11 +45,16 @@ passport.use(
                     header : "<%Monitor%> Alert",
                     body : "Monitor status has changed to <%Status%>.\n Advisory to check the resource. \n<%EventDT%>"
                 });
+                console.log(template);
                 if(template){
+                    console.log("here", user);
                     UserModel.findOneAndUpdate({
                         _id: user._id,
                     }, {
-                        $push : {[`notification_templates`] : template._id.toString()},
+                        $push : { notification_templates : template._id.toString()},
+                    },
+                    (err, doc) => {
+                        if(err) console.log(err);
                     });
                 }
 
