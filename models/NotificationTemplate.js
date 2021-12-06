@@ -13,7 +13,6 @@ const NotificationTemplateSchema = new Schema({
     },
     category : {
         type : String,
-        required : true,
     },
     header : {
         type : String,

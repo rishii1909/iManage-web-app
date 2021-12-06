@@ -11,10 +11,14 @@ const DeviceGroupSchema = new Schema({
     devices : [{
         type : mongoose.Schema.ObjectId,
         ref : "Device",
+        unique : true
+
     }],
     analytic_groups : [{
         type : mongoose.Schema.ObjectId,
         ref : "MonitorGroup",
+        unique : true
+
     }],
 
 }, { versionKey: false })

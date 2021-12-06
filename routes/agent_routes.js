@@ -10,6 +10,7 @@ const { get_capacity, handle_error, handle_success, is_root, found_invalid_ids, 
 const TeamModel = require('../models/Team');
 const UserModel = require('../models/User');
 const MonitorModel = require('../models/Monitor');
+const { fetchWebSocket, checkWebSocket } = require('../helpers/websocket');
 const router = express.Router();
 
 const ssh = new NodeSSH()
@@ -323,7 +324,12 @@ router.post('/enumerate/team', async (req, res, next) => {
                     }
                 }).select("-creds").exec((err, docs) => {
                     if(err) return res.json(handle_generated_error(err))
-
+                    let agents = docs;
+                    for (let i = 0; i < agents.length; i++) {
+                        const connected = false;
+                        agents[i] = {...(agents[i].toObject()), connected}
+                        
+                    }
                     return res.json(handle_success(docs))
                 });
 
@@ -348,18 +354,31 @@ router.post('/enumerate/user', async (req, res, next) => {
         }, async (err, team) => {
             if(err) return res.json(handle_generated_error(err));
             if(!team) return res.json(not_found("Team"));
-            
-            const team_agents = (team.user_agents.get(user_id) && team.user_agents.get(user_id).length) ? team.user_agents.get(user_id).filter(agent => isValidObjectId(agent)) : team.user_agents.get(user_id);
-            if(!(team_agents && team_agents.length > 0)) return res.json(handle_success([]));
+            const user_agents = team.user_agents.get(user_id);
+            if(team.level == 0){
+                const cloud_agent_id = "61a35d2722fd3300162c2bb1";
+                const cloud_agent_index = user_agents.indexOf(cloud_agent_id)
+                if(cloud_agent_index !== -1) user_agents.splice(cloud_agent_index, 1);
+            }
+            if(!(user_agents && user_agents.length > 0)) return res.json(handle_success([]));
             AgentModel.find(
                 {
                     _id : {
-                        $in : team_agents
+                        $in : user_agents
                     }
                 }).select("-creds").exec((err, docs) => {
                     if(err) return res.json(handle_generated_error(err))
+                    let agents = docs;
+                    for (let i = 0; i < agents.length; i++) {
+                        const connected = checkWebSocket(agents[i]._id);
+                        agents[i] = {...(agents[i].toObject()), connected}
+                        
+                    }
 
-                    return res.json(handle_success(docs))
+                    return res.json(handle_success(agents))
+
+                    // console.log(agents)connected
+                    
                 });
 
         });

@@ -11,6 +11,7 @@ const MonitorGroupSchema = new Schema({
     monitors : [{
         type : mongoose.Schema.ObjectId,
         ref : "Monitor",
+        unique : true
     }],
 }, { versionKey: false })
 

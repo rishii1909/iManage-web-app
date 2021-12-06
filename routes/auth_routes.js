@@ -27,6 +27,7 @@ router.post('/login', async (req, res, next) => {
                             user_id : user._id,
                             team_id : user.team_id,
                             name : user.name,
+                            pro : user.pro,
                             auth_token : token,
                             message : info
                     }

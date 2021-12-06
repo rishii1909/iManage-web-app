@@ -20,14 +20,19 @@ const AlertRulesSchema = new Schema({
 })
 const NotificationRuleSchema = new Schema({
     alert_all : Boolean,
-    alert_rules : [AlertRulesSchema],
+    alert_rules : Schema.Types.Mixed,
 })
 
 const MonitorSchema = new Schema({
     agent_id : {
         type : Schema.Types.ObjectId,
         ref : 'Agent',
-        required : false,
+        // required : true,
+    },
+    team_id : {
+        type : Schema.Types.ObjectId,
+        ref : 'Team',
+        required : true
     },
     device_id : {
         type : Schema.Types.ObjectId,
@@ -39,7 +44,7 @@ const MonitorSchema = new Schema({
     },
     monitor_ref : {
         type : String,
-        required : true
+        required : false
     },
     type : {
         type : String,
@@ -48,13 +53,23 @@ const MonitorSchema = new Schema({
     offline_times : OfflineSchema,
     notification_template : {
         type : Schema.Types.ObjectId,
+        ref : "Notification template"
     },
-    assigned_users : {
-        type : Array,
-        default : [],
+    assigned_users : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "User",
+    }],
+    creator : {
+        type : mongoose.Schema.ObjectId,
+        ref : "User"
+    },
+    fromTeam : {
+        type : Boolean,
+        default : false
     },
     retention_schedule : RetentionSchema,
     notification_rules : NotificationRuleSchema,
+    additional_info : mongoose.Schema.Types.Mixed
 
 }, { versionKey: false })
 

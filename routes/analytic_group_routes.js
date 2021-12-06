@@ -18,15 +18,18 @@ router.post('/add', async (req, res, next) => {
         const data = req.body;
         let analytic_group_id = data.analytic_group_id;
         let monitors = data.monitors;
-        let push_updates = {};
+        let push_updates = {
+            $addToSet : {}
+        };
+        push_updates_derivative = push_updates['$addToSet'];
 
         if(monitors && Array.isArray(monitors) && monitors.length !== 0){
-            push_updates.monitors = {
+            push_updates_derivative.monitors = {
                 $each : monitors,
             }
         }
 
-        if(Object.keys(push_updates).length == 0) return res.json(handle_error("No monitors provided."))
+        if(Object.keys(push_updates_derivative).length == 0) return res.json(handle_error("No monitors provided."))
 
         MonitorGroupModel.findOneAndUpdate({
             _id: analytic_group_id,

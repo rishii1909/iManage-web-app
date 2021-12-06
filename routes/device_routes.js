@@ -60,13 +60,13 @@ router.post('/create/team', async (req, res, next) => {
                     if(!connection.isConnected){
                         return res.json(handle_error({
                             error : null,
-                            message : "Could not confirm remote connectivity, are you sure you entered valid credentials?",
+                            message : "Could not confirm remote connectivity, are you sure you entered valid hostname or credentials?",
                         }));
                     }
                 } catch (err) {
                     return res.json(handle_error({
                         error : err,
-                        message : "Could not confirm remote connectivity, are you sure you entered valid credentials?",
+                        message : "Could not confirm remote connectivity, are you sure you entered valid hostname or credentials?",
                     }));
                 }
             }
@@ -80,6 +80,7 @@ router.post('/create/team', async (req, res, next) => {
                 username : data.username ,
                 host : data.host ,
                 creds : creds ,
+                private : data.private
                 // monitors : data.monitors ,
             }
 
@@ -88,7 +89,11 @@ router.post('/create/team', async (req, res, next) => {
                 // Step 4 : Set update info
                 let update_data = {
                     $push : { [`devices`] : device._id.toString() },
-                    $inc : { device_occupancy : 1 }
+                    $inc : { device_occupancy : 1 },
+
+                    ...(Array.isArray(data.assigned_users) && data.assigned_users.length > 0) && {
+                        [`assigned_devices.${device._id}`] : [... new Set(data.assigned_users) , ... new Set(team[`assigned_devices.${device._id}`])]
+                    }
                 }
                 // Step 5 : Push all updates for team.
                 TeamModel.updateOne({
@@ -166,11 +171,11 @@ router.post('/create/user', async (req, res, next) => {
                 team_id : data.team_id ,
                 snmp : data.snmp ,
                 community_string : data.community_string ,
-
                 type : data.type ,
                 username : data.username ,
                 host : data.host ,
                 creds : creds ,
+                private : data.private
                 // monitors : data.monitors ,
             }
 
@@ -621,9 +626,9 @@ router.post('/enumerate', async (req, res, next) => {
     const ids_array = JSON.parse(data.device_ids);
     await DeviceModel.find().where('_id').in(ids_array).select('-creds').exec((err, resp) => {
         if(err){
-            res.json(handle_error(err));
+            return res.json(handle_error(err));
         }else{
-            res.json(handle_success(resp))
+            return res.json(handle_success(resp))
         }
     });
 })

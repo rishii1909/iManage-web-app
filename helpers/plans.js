@@ -107,10 +107,9 @@ exports.found_invalid_ids = (array_of_ids, res) => {
   });
   return {
     invalid : check,
-    ...(ids.length) && {message : res.json(this.handle_error({
+    ...(ids.length) && {
       message : "Invalid IDs found.",
-      ids : ids
-    }))}
+    }
   };
 }
 
@@ -146,7 +145,6 @@ exports.webSocketSendJSON = async (ws, data) => {
     try {
       ws.send(JSON.stringify(data));
       ws.on("message", function incoming(response){
-        console.log("recieved : ", response)
       // const response_json = webSocketRecievedJSON(response);
       resolve(JSON.parse(ab2str(response)));
     })

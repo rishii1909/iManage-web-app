@@ -1,3 +1,7 @@
+const MonitorModel = require("../models/Monitor");
+const TeamModel = require("../models/Team");
+const UserModel = require('../models/User');
+const NotificationModel = require('../models/Notification');
 const { binary_monitors } = require("./plans");
 
 exports.parseDashboardDataResponse = (resp, final_response_object, monitor_type_key) => {
@@ -53,4 +57,75 @@ exports.parseDashboardDataResponse = (resp, final_response_object, monitor_type_
             }
         }
     }
+}
+
+exports.emitNotification = (nf) => {
+    console.log("Notification emit event triggered")
+    MonitorModel.findOne({
+        monitor_ref: nf.monitor_ref,
+    }).populate("notification_template").then((monitor) => {
+        if (!monitor) {
+            return console.log(`[${nf.monitor_ref}] Notification emit error - Monitor not found.`)
+        }
+        let notif_users = []
+        const template = {
+            header : monitor.notification_template.header,
+            body : monitor.notification_template.body
+        }
+        template.header.replace("<%Monitor%>", nf.monitor_name);
+        template.header.replace("<%Status%>", nf.current_monitor_status);
+        template.header.replace("<%EventDT%>", nf.event_dt);
+        template.header.replace("<%EventMessage%>", nf.alert_verbose);
+        template.body.replace("<%Monitor%>", nf.monitor_name);
+        template.body.replace("<%Status%>", nf.current_monitor_status);
+        template.body.replace("<%EventDT%>", nf.event_dt);
+        template.body.replace("<%EventMessage%>", nf.alert_verbose);
+        notif_users.push(monitor.creator)
+        if(monitor.assigned_users && monitor.assigned_users.length > 0){
+            notif_users.concat(monitor.assigned_users);
+        }
+        if(monitor.fromTeam){
+            TeamModel.findOne({
+                _id: monitor.team_id,
+            }).then((team) => {
+                if(!team) return console.log(`[${nf.monitor_ref}] Notification emit error - Team not found : ${monitor.team_id}`)
+                if(team.sudoers && team.sudoers.length){
+                    notif_users.concat(team.sudoers);
+                }
+                if(team.monitoring_admins && team.monitoring_admins.length){
+                    notif_users.concat(team.monitoring_admins);
+                }
+
+                pushNotification(notif_users, {...nf, ...template});
+            });
+        }else{
+            pushNotification(notif_users, {...nf, ...template});
+        }
+
+    });
+}
+
+function pushNotification(users, notification){
+    console.log("Pushing notification to users...")
+    console.log(users);
+    NotificationModel.create(notification, (err, notif) => {
+        if(err) console.log(err);
+        if(notif){
+            UserModel.updateMany({ 
+                _id: {
+                    $in : users
+                }
+            }, {
+                $push : {
+                    notifications : notif._id
+                }
+            },
+            {upsert : true},
+            (err) => {
+               if(err){
+                   console.log(`Notification Push Error: ` + err)
+               }
+            });
+        }
+    })
 }

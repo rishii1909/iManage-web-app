@@ -147,7 +147,7 @@ router.post('/delete', async (req, res, next) => {
             _id: user_id,
         }, {
             $pull: {
-                [`notification_templates`] : {_id : notif_id}
+                notification_templates : {_id : notif_id}
             },
         }, (err, doc) => {
             if(no_docs_or_error(doc, err).is_true) console.log(err, doc);

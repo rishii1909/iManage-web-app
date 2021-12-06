@@ -41,3 +41,8 @@ exports.fetchWebSocket = (agent_id) => {
     
     return AGENTS[agent_id] ? AGENTS[agent_id] : false; 
 }
+
+exports.checkWebSocket = (agent_id) => {
+    
+    return AGENTS[agent_id] ? true : false; 
+}

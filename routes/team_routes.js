@@ -74,6 +74,30 @@ router.post('/enumerate', async (req, res, next) => {
     }
 })
 
+router.post('/enumerate/users', async (req, res, next) => {
+    const data = req.body;
+    try {
+        TeamModel.findOne({_id : data.team_id})
+        .populate(
+            [
+                {
+                    path : "users",
+                    select : "name"
+                }
+            ]
+        )
+        .exec( async (err, team) => {
+            if(err) return res.json(handle_generated_error(err));
+            if(!team) return res.json(not_found("Team"));
+            const findCurrent = team.users.findIndex( o => o._id == data.user_id);
+            if(findCurrent != -1) team.users.splice(findCurrent, 1);
+            return res.json(handle_success(team.users));
+        });
+    } catch (err) {
+        // console.log(handle_error({err}));
+    }
+})
+
 router.post('/enumerate/team/monitors', async (req, res, next) => {
     const data = req.body;
     try {

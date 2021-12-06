@@ -25,6 +25,10 @@ const UserSchema = new Schema({
         type : Array,
         default : [],
     },
+    notifications : [{
+        type : Schema.Types.ObjectId,
+        ref : "Notification"
+    }]
 
 
 }, { versionKey: false })

@@ -20,10 +20,10 @@ const TeamSchema = new Schema({
         type : Number,
         default : 0
     },
-    users : {
-        type : Array,
-        default : []
-    },
+    users : [{
+        type : Schema.Types.ObjectId,
+        ref : 'User',
+    }],
     devices : { // team objects go here
         type : Array,
         default : []
@@ -61,6 +61,10 @@ const TeamSchema = new Schema({
         default : {},
     },
     assigned_monitors : { // Object of users, non-nested. store actual per-user map in user object itself.
+        type : Map,
+        default : {},
+    },
+    assigned_monitors_users : { // Object of users, non-nested. store actual per-user map in user object itself.
         type : Map,
         default : {},
     },

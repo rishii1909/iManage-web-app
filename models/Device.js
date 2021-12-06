@@ -43,6 +43,14 @@ const DeviceSchema = new Schema({
         type : Map,
         default : {}
     },    
+    private : {
+        type : Boolean,
+        default : false
+    },
+    assigned_devices : [{
+        type : mongoose.Schema.ObjectId,
+        ref : "User",
+    }],
 }, { versionKey: false })
 
 

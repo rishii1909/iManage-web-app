@@ -19,15 +19,18 @@ router.post('/add', async (req, res, next) => {
         let device_group_id = data.device_group_id;
         let devices = data.devices;
         let analytic_groups = data.analytic_groups;
-        let push_updates = {};
+        let push_updates = {
+            $addToSet : {}
+        };
+        push_updates_derivative = push_updates['$addToSet'];
 
         if(devices && Array.isArray(devices) && devices.length !== 0){
-            push_updates.devices = {
+            push_updates_derivative.devices = {
                 $each : devices,
             }
         }
         if(analytic_groups && Array.isArray(analytic_groups) && analytic_groups.length !== 0){
-            push_updates.analytic_groups = {
+            push_updates_derivative.analytic_groups = {
                 $each : analytic_groups,
             }
         }

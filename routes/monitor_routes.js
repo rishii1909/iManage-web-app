@@ -31,8 +31,9 @@ router.post('/create/team', async (req, res, next) => {
         let agent_id = data.agent_id;
         let team_id = data.team_id;
         const monitor_type = data.type;
-        if(found_invalid_ids([user_id, device_id, agent_id]).invalid){
-            return res.json(handle_error("The given User ID is not valid."));
+        const invalidCheck = found_invalid_ids([user_id, device_id, agent_id], res);
+        if(invalidCheck.invalid){
+            return res.json(handle_error(invalidCheck.message));
         }
 
         if(!check_monitor_type(data.type)) return res.json(invalid_monitor_type());
@@ -47,11 +48,13 @@ router.post('/create/team', async (req, res, next) => {
         })
         .exec(async (err, agent) => {
             // Check if valid response returned.
-            const invalid = no_docs_or_error(agent, err);
-            if(invalid.is_true) return res.json(invalid.message);
+            if(err) return res.json(handle_generated_error(err));
+        if(!team) return res.json(not_found("Agent"));
 
             // Populated declarations.
-            const team = agent.team_id;
+            // const team = agent.team_id;
+            const team = TeamModel.findById({_id : team_id});
+            if(!team) return not_found("Team");
             
             // Check for vacancy.
             if(team.monitor_occupancy >= get_capacity(team.level).monitors) return res.json(handle_error("Max monitors limit exceeded."));
@@ -62,6 +65,8 @@ router.post('/create/team', async (req, res, next) => {
             const monitor_info = { ...data, ...(device.creds) };
             monitor_info.api_path = `/api/${monitor_info.type}/mutate/create`;
             monitor_info.api_method = 'post';
+            monitor_info.fromTeam = true;
+            monitor_info.creator = user_id;
 
             // Add code here to check for permissions. Skipped for now.
 
@@ -109,7 +114,10 @@ router.post('/create/team', async (req, res, next) => {
                         [`monitors.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
                         // [`user_monitors.${user_id}.${monitor._id}`]: true,
                         $inc : { monitor_occupancy : 1 },
-                        $push : {team_monitors_arr : monitor._id}
+                        $push : {team_monitors_arr : monitor._id},
+                        ...(Array.isArray(data.assigned_users) && data.assigned_users.length > 0) && {
+                            [`assigned_monitors.${monitor._id}`] : [... new Set(data.assigned_users) , ... new Set(team.assigned_users)]
+                        }
                     }
                     await DeviceModel.updateOne(
                         {
@@ -123,6 +131,11 @@ router.post('/create/team', async (req, res, next) => {
                         },
                         update_team,
                     );
+                    if(Array.isArray(data.assigned_users) && data.assigned_users.length > 0){
+                        res.runMiddleware('/monitors/assign/add', {method : 'post'}, (code, data) => {
+                            console.log(code, data);
+                        })
+                    }
                     const final_response = {...monitor.toObject(), ...remote_response};
                     final_response._id = monitor._id;
                     return res.json(handle_success({
@@ -141,6 +154,318 @@ router.post('/create/team', async (req, res, next) => {
     }
 })
 
+router.post('/lite/create', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let device_id = data.device_id;
+        let team_id = data.team_id;
+        const monitor_type = data.type;
+        console.log(data.type, check_monitor_type(data.type))
+        if(!check_monitor_type(data.type)) return res.json(invalid_monitor_type());
+        
+        const monitor = await MonitorModel.create(data);
+        if(!monitor) return res.json(handle_error("Monitor could not be created."))
+        // Step 3 : Set update info
+
+        let update_device = {
+            [`monitors.lite.${monitor_type}.${monitor._id}`]: true,
+        }
+        let update_team = {
+            // [`user_monitors.${user_id}.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
+            $push : { [`user_monitors_arr.${user_id}`]: monitor._id },
+            $inc : { monitor_occupancy : 1 },
+        }
+
+        await DeviceModel.updateOne(
+            {
+                _id: device_id,
+            },
+            update_device
+        );
+        await TeamModel.updateOne(
+            {
+                _id : team_id,
+            },
+            update_team,
+        );
+        return res.json(handle_success({
+            message : "Monitor created successfully!",
+            monitor : monitor
+        }))
+        
+    } catch (err) {
+        res.json(handle_error(err.message ? err.message : err));
+        console.log(err)
+    }
+})
+
+router.post('/lite/update', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let monitor_id = data.monitor_id;
+        
+        MonitorModel.findOneAndUpdate({
+            _id: monitor_id,
+        }, 
+        data,
+        {new : true},
+        (err, monitor) => {
+            if (err) return res.json(handle_generated_error(err))
+            return res.json(handle_success(monitor))
+        });
+        
+    } catch (err) {
+        res.json(handle_error(err.message ? err.message : err));
+        console.log(err)
+    }
+})
+
+router.post('/lite/enumerate', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let monitor_id = data.monitor_id;
+        
+        MonitorModel.findById({ 
+            _id: monitor_id
+        }, (err, monitor) => {
+            if (err) return res.json(handle_generated_error(err))
+            return res.json(handle_success(monitor))
+        });
+    } catch (err) {
+        res.json(handle_error(err.message ? err.message : err));
+        console.log(err)
+    }
+})
+
+router.post('/lite/delete', async (req, res, next) => {
+    try {
+        const data = req.body;
+        let user_id = data.user_id;
+        let team_id = data.team_id;
+        let monitor_id = data.monitor_id;
+        
+        MonitorModel.findOneAndDelete({
+            _id: monitor_id,
+        }, 
+        async (err, monitor) => {
+            if (err) return res.json(handle_generated_error(err))
+
+            let update_device = {
+                $unset : {
+                    [`monitors.lite.${data.type}.${monitor._id}`]: 1,
+                }
+                // [`monitors.${agent._id}.${monitor_type}.${monitor._id}`]: true,
+            }
+
+            let update_team = {
+                // $unset : {
+                //     [`user_monitors.${user_id}.${agent._id}.${monitor_type}.${monitor.monitor_ref}`]: 1,
+                // },
+                $pull : { 
+                    [`user_monitors_arr.${user_id}`]: monitor._id
+                 },
+                $inc : { monitor_occupancy : -1 }
+            }
+
+            // Step 4 : Push all updates for team.
+            await DeviceModel.updateOne(
+                {
+                    _id: monitor.device_id,
+                },
+                update_device
+            );
+            await TeamModel.updateOne(
+                {
+                    _id : team_id,
+                },
+                update_team
+            );
+            return res.json(handle_success("Monitor deleted successfully."))
+        });
+    } catch (err) {
+        res.json(handle_error(err.message ? err.message : err));
+        console.log(err)
+    }
+})
+
+router.post('/assign/add', async (req, res, next) => {
+    console.log("Adding monitor admins...")
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    const monitor_id = data.monitor_id;
+    const users = data.users;
+
+    if(!(Array.isArray(users) && users.length > 0)){
+        return res.json(handle_error("Invalid/Empty monitors array."));
+    }
+
+    MonitorModel.findOneAndUpdate({
+        _id: monitor_id,
+    }, {
+        $addToSet : {
+            assigned_users : {
+                $each : users
+            }
+        }
+    },
+    { new : true },
+    (err, monitor) => {
+        if(err) return res.json(handle_generated_error(err));
+        if(!monitor) return res.json(handle_error(not_found("Monitor")));
+
+        const users_obj = {};
+        users.forEach((user) => users_obj[`assigned_monitors_users.${user}`] = monitor_id)
+
+        TeamModel.findOneAndUpdate({
+            _id: team_id,
+        }, {
+            $addToSet : {
+                [`assigned_monitors.${monitor_id}`]: {
+                    $each : users
+                },
+                ...users_obj
+            },
+        }, (err, team) => {
+            if(err) return res.json(handle_generated_error(err))
+            if(!team) return res.json(handle_error(not_found("Team")))
+
+            return res.json(handle_success(monitor));
+        });
+    });
+})
+
+router.post('/assign/remove', async (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    const monitor_id = data.monitor_id;
+    const users = data.users;
+
+    if(!(Array.isArray(users) && users.length > 0)){
+        return res.json(handle_error("Invalid/Empty monitors array."));
+    }
+
+    MonitorModel.findOneAndUpdate({
+        _id: monitor_id,
+    }, {
+        $pull : {
+            assigned_users : {
+                $in : users
+            }
+        }
+    },
+    { new : true },
+    (err, monitor) => {
+        if(err) return res.json(handle_generated_error(err));
+        if(!monitor) return res.json(handle_error(not_found("Monitor")));
+
+        const users_obj = {};
+        users.forEach((user) => users_obj[`assigned_monitors_users.${user}`] = monitor_id)
+
+        TeamModel.findOneAndUpdate({
+            _id: team_id,
+        }, {
+            $pull : {
+                [`assigned_monitors.${monitor_id}`]: {
+                    $in : users
+                },
+                ...users_obj
+            },
+        }, (err, team) => {
+            if(err) return res.json(handle_generated_error(err))
+            if(!team) return res.json(handle_error(not_found("Team")))
+
+            return res.json(handle_success(monitor));
+        });
+    });
+})
+
+router.post('/assign/enumerate', async (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    const monitor_id = data.monitor_id;
+
+    TeamModel.findById({
+        _id : team_id
+    }, async (err, team) => {
+      if(err) return res.json(handle_generated_error(err))
+      if(!team) return res.json(not_found("Team"));
+
+      const assigned_monitors_arr = Array.from(team.assigned_monitors.keys())
+      console.log(assigned_monitors_arr)
+      await MonitorModel.find({ 
+          _id : {
+              $in : assigned_monitors_arr
+          }
+      })
+      .select("label type monitor_ref")
+      .exec((err, monitors) => {
+        if(err){
+          console.log(err)
+          return res.json(handle_generated_error(err))
+        }
+      return res.json(handle_success(monitors));
+    });
+      
+
+    });
+})
+
+router.post('/assign/enumerate/monitor', async (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    const monitor_id = data.monitor_id;
+
+    MonitorModel.findById({ 
+        _id : monitor_id
+    })
+    .populate("assigned_users", "email name") 
+    .exec((err, monitor) => {
+        if(err) return res.json(handle_generated_error(err))
+        if(!monitor) return res.json(not_found("Monitor"));
+
+        return  res.json(handle_success({ assigned_users : monitor.assigned_users }));
+    })
+})
+
+router.post('/assign/enumerate/user', async (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+
+    TeamModel.findById({ 
+        _id : team_id
+    }, (err, team) => {
+        if(err) {console.log(err); return res.json(handle_generated_error(err))};
+        if(!team) return res.json(not_found("Team"))
+
+        const monitors = team.assigned_monitors_users.has(user_id) ? team.assigned_monitors_users.get(user_id) : [];
+        // console.log(team.assigned_monitors_users, monitors, user_id)
+        if(monitors && monitors.length > 0){
+            MonitorModel.find({ 
+                _id: {
+                    $in : monitors
+                }
+            })
+            .select("type label monitor_ref")
+            .exec((err, monitors) => {
+                if(err) { console.log(err); return res.json(handle_generated_error(err))}
+                return res.json(handle_success(monitors));
+            });
+        }else{
+            return res.json(handle_success([]))
+        }
+    });
+})
+
 router.post('/create/user', async (req, res, next) => {
     try {
         const data = req.body;
@@ -154,7 +479,6 @@ router.post('/create/user', async (req, res, next) => {
         }
 
         if(!check_monitor_type(monitor_type)) return res.json(invalid_monitor_type());
-
         AgentModel.findById({
             _id : agent_id
         })
@@ -168,7 +492,9 @@ router.post('/create/user', async (req, res, next) => {
             if(invalid.is_true) return res.json(invalid.message);
 
             // Populated declarations.
-            const team = agent.team_id;
+            // const team = agent.team_id;
+            const team = await TeamModel.findById({_id : team_id});
+            if(!team) return res.json(not_found("Team"))
 
             // Check for vacancy.
             if(team.monitor_occupancy >= get_capacity(team.level).monitors) return res.json(handle_error("Max monitors limit exceeded."));
@@ -179,6 +505,8 @@ router.post('/create/user', async (req, res, next) => {
             const monitor_info = { ...data, ...(device.creds) };
             monitor_info.api_path = `/api/${monitor_info.type}/mutate/create`;
             monitor_info.api_method = 'post';
+            monitor_info.fromTeam = true;
+            monitor_info.creator = user_id;
 
             // Add code here to check for permissions. Skipped for now.
 
@@ -212,7 +540,7 @@ router.post('/create/user', async (req, res, next) => {
                 })
             }
 
-            
+
 
             async function update_team_after_create_user_monitor(remote_response){
                 try {
@@ -229,7 +557,10 @@ router.post('/create/user', async (req, res, next) => {
                     let update_team = {
                         [`user_monitors.${user_id}.${agent_id}.${monitor_type}.${monitor.monitor_ref}`]: true,
                         $push : { [`user_monitors_arr.${user_id}`]: monitor._id },
-                        $inc : { monitor_occupancy : 1 }
+                        $inc : { monitor_occupancy : 1 },
+                        ...(Array.isArray(data.assigned_users) && data.assigned_users.length > 0) && {
+                            [`assigned_monitors.${monitor._id}`] : [... new Set(data.assigned_users) , ... new Set(team.assigned_users)]
+                        }
                     }
 
                     // Step 4 : Push all updates for team.
@@ -243,8 +574,12 @@ router.post('/create/user', async (req, res, next) => {
                         {
                             _id : team._id,
                         },
-                        update_team
+                        update_team,
+                        (err) => {
+                          if(err) console.log(err);
+                        }
                     );
+                    
                     const final_response = {...monitor.toObject(), ...remote_response};
                     final_response._id = monitor._id;
                     return res.json(handle_success({
@@ -305,7 +640,7 @@ router.post('/dashboard/showcase', (req, res, next) => {
         // Looping through all agents.
         const team_monitors = team.monitors ? team.monitors : [];
         const user_monitors = team.user_monitors.has(user_id) ? team.user_monitors.get(user_id) : [];
-        
+        console.log(team.monitors, team.user_monitors)
         const final_urls = []
         const fetch_urls = await AgentModel.find({
             _id : {
@@ -417,7 +752,6 @@ router.post('/dashboard/showcase', (req, res, next) => {
     });
 })
 
-
 router.post('/update/team', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
@@ -432,9 +766,8 @@ router.post('/update/team', (req, res, next) => {
     TeamModel.findById({
         _id : team_id
     }).populate("agent_id").exec(async (err, team) => {
-        if(!team || err){
-            return res.json(handle_error("Could not retrieve valid data from database."));
-        }
+        if(err) return res.json(handle_generated_error(err));
+        if(!team) return res.json(not_found("Team"));
         let isRoot = is_root(team.root, user_id);
         if(
             !(
@@ -492,9 +825,8 @@ router.post('/update/user', (req, res, next) => {
     TeamModel.findById({
         _id : team_id
     }).populate("agent_id").exec(async (err, team) => {
-        if(!team || err){
-            return res.json(handle_error("Could not retrieve valid data from database."));
-        }
+        if(err) return res.json(handle_generated_error(err));
+        if(!team) return res.json(not_found("Team"));
         // let isRoot = is_root(team.root, user_id);
         // if(
         //     !(
@@ -637,10 +969,7 @@ router.post('/enumerate/monitor', (req, res, next) => {
             await MonitorModel.findById({ 
             _id : monitor_id
             })
-            .populate({
-                path : 'agent_id',
-                select : 'api_url -_id private'
-            }).exec( async (err, monitor) => {
+            .populate("agent_id").exec( async (err, monitor) => {
                 // Call the remote agent API.
                 if(err) return res.json(handle_generated_error(err));
                 if(!monitor) return res.json(not_found("Monitor"));
@@ -648,6 +977,7 @@ router.post('/enumerate/monitor', (req, res, next) => {
                 sendData.api_path = `/api/${monitor.type}/fetch/view/one`;
                 sendData.api_method = "post";
                 sendData.agent_id = monitor.monitor_ref;
+                console.log(monitor)
                 if(monitor.agent_id.private){
                     const ws = fetchWebSocket(monitor.agent_id._id);
                     if(ws){
@@ -875,9 +1205,13 @@ router.post('/delete/user', async (req, res, next) => {
                             [`monitors.${agent._id}.${monitor_type}.${monitor._id}`]: true,
                         }
                         let update_team = {
-                            [`user_monitors.${user_id}.${agent._id}.${monitor_type}.${monitor.monitor_ref}`]: true,
-                            $push : { [`user_monitors_arr.${user_id}`]: monitor._id },
-                            $inc : { monitor_occupancy : 1 }
+                            $unset : {
+                                [`user_monitors.${user_id}.${agent._id}.${monitor_type}.${monitor.monitor_ref}`]: 1,
+                            },
+                            $pull : { 
+                                [`user_monitors_arr.${user_id}`]: monitor._id
+                             },
+                            $inc : { monitor_occupancy : -1 }
                         }
 
                         // Step 4 : Push all updates for team.

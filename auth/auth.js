@@ -2,9 +2,13 @@ const passport = require('passport');
 const localStrategy = require('passport-local').Strategy;
 const UserModel = require('../models/User');
 const TeamModel = require('../models/Team');
+const AgentModel = require('../models/Agent')
 const TeamSecretModel = require('../models/TeamSecret');
 const JWTstrategy = require('passport-jwt').Strategy;
 const ExtractJWT = require('passport-jwt').ExtractJwt;
+
+const cloud_agent_id = "61a35d2722fd3300162c2bb1";
+
 
 passport.use(
     'register',
@@ -22,11 +26,9 @@ passport.use(
                 teamData.root = user._id;
                 teamData.level = 0;
                 teamData.capacity = 1;
-                teamData.users = {
-                    [user._id] : true
-                }
+                teamData.users = [user._id]
                 const team = await TeamModel.create(teamData);
-                await UserModel.updateOne({ 
+                await UserModel.updateOne({
                     _id: user._id
                 }, {
                     team_id: team._id
@@ -36,7 +38,18 @@ passport.use(
                        console.log(`Error: ` + err)
                    }
                 });
-
+                console.log(team._id)
+                await TeamModel.findByIdAndUpdate(
+                    {_id : team._id}, 
+                    {
+                        $push : { [`user_agents.${user._id}`] : cloud_agent_id },
+                        $inc : { agent_occupancy : 1 }
+                    },
+                    )
+                req.body.created_data = {
+                    user : user,
+                    team : team
+                }
                 return done(null, {
                     user : user,
                     team : team
@@ -56,12 +69,18 @@ passport.use(
                         _id: secret.team_id,
                     }, {
                         $push : {
-                            users : user._id
-                        }
+                            users : user._id,
+                        },
+                        $push : { [`user_agents.${user_id}`] : cloud_agent_id },
+                        $inc : { agent_occupancy : 1 }
                     }, (err, team) => {
                         if (err) {
                             console.log(`Error: ` + err)
                         } else {
+                            req.body.created_data = {
+                                user : user,
+                                team : team
+                            }
                             return done(null, {
                                 user : user,
                                 team : team
@@ -90,7 +109,13 @@ passport.use(
         async ( email, password, done) => {
             try {
                 const User = await UserModel.findOne({email})
+                // if(User.notifications){
+                //     User.notifications = User.notifications.filter(notif => notif != null);
+                //     User.save;
+                // }
                 const valid_password = await User.check_password(password);
+                const Team = await TeamModel.findById({_id : User.team_id});
+                User.pro = Team.level > 0;
                 if( !User || !valid_password ){
                     return done(
                         null,
