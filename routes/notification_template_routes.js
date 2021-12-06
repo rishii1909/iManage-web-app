@@ -109,6 +109,20 @@ router.post('/enumerate', async (req, res, next) => {
 
     });
 })
+
+router.post('/enumerate/notif', async (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const notif_id = data.notif_id;
+    NotificationTemplateModel.find({ 
+        _id: notif_id
+    }, (err, notif) => {
+        if(err) return res.json(handle_generated_error(err))
+        if(!notif) return res.json(not_found("Notification templates"))
+
+       return res.json(handle_success(notif))
+    });
+})
 // Ignore for now
 router.post('/enumerate/team', async (req, res, next) => {
     const data = req.body;
