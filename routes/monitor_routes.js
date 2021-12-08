@@ -467,6 +467,7 @@ router.post('/assign/enumerate/user', async (req, res, next) => {
 })
 
 router.post('/create/user', async (req, res, next) => {
+    console.log("Creating a monitor user.")
     try {
         const data = req.body;
         let user_id = data.user_id;
@@ -474,9 +475,6 @@ router.post('/create/user', async (req, res, next) => {
         let agent_id = data.agent_id;
         let team_id = data.team_id;
         const monitor_type = data.type;
-        if(found_invalid_ids([user_id, device_id, agent_id]).invalid){
-            return res.json(handle_error("The given User ID is not valid."));
-        }
 
         if(!check_monitor_type(monitor_type)) return res.json(invalid_monitor_type());
         AgentModel.findById({
@@ -1006,6 +1004,9 @@ router.post('/enumerate/monitor', (req, res, next) => {
                                 };
                                 if(doc){
                                     final_response.notification_template = doc;
+                                }
+                                if(monitor){
+                                    final_response.metadata = monitor;
                                 }
                                 return res.json(handle_success(final_response));
                             });

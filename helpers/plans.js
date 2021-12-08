@@ -66,6 +66,7 @@ exports.check_monitor_type = (type) => {
 exports.invalid_monitor_type = () => { return this.handle_error("Given monitor type is invalid.") };
 
 exports.handle_error = (error_message_or_object) => {
+  console.log(error_message_or_object)
   return {
       accomplished : false,
       response : error_message_or_object
@@ -73,6 +74,7 @@ exports.handle_error = (error_message_or_object) => {
 }
 
 exports.handle_generated_error = (generated_error_object) => {
+  console.log(generated_error_object)
   return {
       accomplished : false,
       response : (generated_error_object && generated_error_object.message) ? generated_error_object.message : generated_error_object
