@@ -36,7 +36,8 @@ exports.parseDashboardDataResponse = (resp, final_response_object, monitor_type_
                 // Adding to level 2 - ends
 
                 // Adding to level 3 - starts
-                if( final_response_object.level_3[rec._id.device] && final_response_object.level_3[rec._id.device][rec._id.monitor_ref] ){
+                // device and monitor in response
+                if( final_response_object.level_3[rec._id.device] ){
                     final_response_object.level_3[rec._id.device][rec._id.monitor_ref] = {
                         label : rec._id.label,
                         monitor_status : rec._id.monitor_status
