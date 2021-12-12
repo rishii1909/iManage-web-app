@@ -52,7 +52,7 @@ const monitor_types = new Set([
 
 exports.binary_monitors = {
   "uptime_monitor" : true,
-  "url_monitor" : true,
+  "url_monitor" : false,
   "tcp_monitor" : true,
   "cpu_monitor" : false,
   "disk_monitor" : false,
