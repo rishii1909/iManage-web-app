@@ -11,8 +11,10 @@ const RetentionSchema = new Schema({
     export : String
 })
 const OfflineSchema = new Schema({
-    offline_time_1 : String,
-    offline_time_2 : String,
+    offline_time_1_start : String,
+    offline_time_1_stop : String,
+    offline_time_2_start : String,
+    offline_time_2_stop : String,
 })
 const AlertRulesSchema = new Schema({
     alert_type : String,
