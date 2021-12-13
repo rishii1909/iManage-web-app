@@ -91,7 +91,7 @@ passport.use(
                         $push : {
                             users : user._id,
                         },
-                        $push : { [`user_agents.${user_id}`] : cloud_agent_id },
+                        $push : { [`user_agents.${user._id}`] : cloud_agent_id },
                         $inc : { agent_occupancy : 1 }
                     }, (err, team) => {
                         if (err) {
