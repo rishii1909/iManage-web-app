@@ -83,7 +83,7 @@ exports.emitNotification = (nf) => {
         notif_body = notif_body.replace("<%Status%>", stats(nf.current_monitor_status, nf.is_binary));
         notif_body = notif_body.replace("<%EventDT%>", nf.event_dt);
         notif_body = notif_body.replace("<%EventMessage%>", nf.alert_verbose);
-        notif_body = notif_body.replace("<%Top10%>", nf.top);
+        if(nf.top) notif_body = notif_body.replace("<%Top10%>", nf.top);
         let template = {
             header : notif_header,
             body : notif_body,
