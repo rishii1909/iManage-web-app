@@ -8,7 +8,7 @@ const RetentionSchema = new Schema({
     daily_aggr : Number,
     weekly_aggr : Number,
     monthly_aggr : Number,
-    export : String
+    retsch_export : String
 })
 const OfflineSchema = new Schema({
     offline_time_1_start : String,
@@ -69,12 +69,7 @@ const MonitorSchema = new Schema({
         type : Boolean,
         default : false
     },
-    raw_data : Number,
-    daily_aggr : Number,
-    weekly_aggr : Number,
-    monthly_aggr : Number,
-    retsch_export : String,
-    // retention_schedule : RetentionSchema,
+    retention_schedule : RetentionSchema,
     notification_rules : NotificationRuleSchema,
     additional_info : mongoose.Schema.Types.Mixed
 
