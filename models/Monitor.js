@@ -69,7 +69,12 @@ const MonitorSchema = new Schema({
         type : Boolean,
         default : false
     },
-    retention_schedule : RetentionSchema,
+    raw_data : Number,
+    daily_aggr : Number,
+    weekly_aggr : Number,
+    monthly_aggr : Number,
+    retsch_export : String,
+    // retention_schedule : RetentionSchema,
     notification_rules : NotificationRuleSchema,
     additional_info : mongoose.Schema.Types.Mixed
 
