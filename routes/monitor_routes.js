@@ -790,6 +790,17 @@ router.post('/update/team', (req, res, next) => {
                 sendData.api_path = `/api/${doc.type}/mutate/update`;
                 sendData.api_method = "post";
 
+                MonitorModel.findOneAndUpdate({
+                    _id: monitor_id,
+                },
+                data,
+                {new : true},
+                (err, doc) => {
+                    if (err) {
+                        console.log(`Monitor metadata update error: ` + err)
+                    }
+                });
+
                 const ws = fetchWebSocket(doc.agent_id._id);
                 if(ws){
                     const response_json = await webSocketSendJSON(ws, sendData);
@@ -848,7 +859,16 @@ router.post('/update/user', (req, res, next) => {
                 const sendData = {...data, ...{agent_id : doc.monitor_ref}};
                 sendData.api_path = `/api/${doc.type}/mutate/update`;
                 sendData.api_method = "post";
-
+                MonitorModel.findOneAndUpdate({
+                    _id: monitor_id,
+                },
+                data,
+                {new : true},
+                (err, doc) => {
+                    if (err) {
+                        console.log(`Monitor metadata update error: ` + err)
+                    }
+                });
                 const ws = fetchWebSocket(doc.agent_id._id);
                 if(ws){
                     const response_json = await webSocketSendJSON(ws, sendData);
