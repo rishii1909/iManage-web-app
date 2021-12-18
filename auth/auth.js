@@ -85,15 +85,17 @@ passport.use(
                         return done("Your team secret is invalid.");
                     }
                     var user = await UserModel.create({...req.body, ...{team_id : secret.team_id}});
-                    await TeamModel.findOneAndUpdate({
+                    console.log("secret team id", secret.team_id)
+                    TeamModel.findOneAndUpdate({
                         _id: secret.team_id,
                     }, {
                         $push : {
                             users : user._id,
                         },
                         $push : { [`user_agents.${user._id}`] : cloud_agent_id },
-                        $inc : { agent_occupancy : 1 }
+                        $inc : { user_occupancy : 1 }
                     }, (err, team) => {
+                        console.log(team._id);
                         if (err) {
                             console.log(`Error: ` + err)
                         } else {

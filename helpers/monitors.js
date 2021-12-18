@@ -84,6 +84,7 @@ exports.emitNotification = (nf) => {
         notif_body = notif_body.replace("<%EventDT%>", nf.event_dt);
         notif_body = notif_body.replace("<%EventMessage%>", nf.alert_verbose);
         if(nf.top) notif_body = notif_body.replace("<%Top10%>", nf.top);
+        else notif_body = notif_body.replace("<%Top10%>", "");
         let template = {
             header : notif_header,
             body : notif_body,
