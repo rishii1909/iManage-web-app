@@ -1000,7 +1000,22 @@ router.post('/enumerate/monitor', (req, res, next) => {
                     const ws = fetchWebSocket(monitor.agent_id._id);
                     if(ws){
                         const response_json = await webSocketSendJSON(ws, sendData);
-                        return res.json(response_json);
+                        NotificationTemplateModel.findById({ 
+                            _id : monitor.notification_template
+                        }, (err, doc) => {
+                            if(err) console.log(err);
+                            const final_response = {
+                                monitor : response_json,
+                            };
+                            if(doc){
+                                final_response.notification_template = doc;
+                            }
+                            if(monitor){
+                                final_response.metadata = monitor;
+                            }
+                            return res.json(handle_success(final_response));
+                        });
+                        // return res.json(response_json);
                     }else{
                         return res.json(handle_error({
                             message : "Remote agent is not accessible.",
