@@ -47,6 +47,10 @@ const MonitorAdminSchema = new Schema({
     user_id : {
         type : Schema.Types.ObjectId,
         ref : "User"
+    },
+    enabled : {
+        type : Boolean,
+        default : true
     }
 
 
