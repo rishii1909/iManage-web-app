@@ -19,6 +19,14 @@ const MonitorAdminSchema = new Schema({
         type : Boolean,
         default : false
     },
+    send_queued : {
+        type : Boolean,
+        default : true
+    },
+    incl_message_body : {
+        type : Boolean,
+        default : true
+    },
     incl_ok : {
         type : Boolean,
         default : true
