@@ -63,7 +63,7 @@ router.post('/add/one', async (req, res, next) => {
     let add_user_id = data.add_user_id;
     const team_id = data.team_id;
     try {
-        await TeamModel.findById({_id : team_id}, (err, response) => {
+        await TeamModel.findById({_id : team_id}, async (err, response) => {
             // Check if response is valid.
             const invalid = no_docs_or_error(response, err);
             if(invalid.is_true){
@@ -80,8 +80,10 @@ router.post('/add/one', async (req, res, next) => {
             }
             // Actual operations.
             data.user_id = data.add_user_id;
-            const profile = MonitorAdminModel.create(data);
+            console.log(data);
+            const profile = await MonitorAdminModel.create(data);
             if(!profile) return res.json(handle_error("Admin profile could not be created."));
+            console.log(profile);
 
             TeamModel.updateOne({
                 _id: team_id

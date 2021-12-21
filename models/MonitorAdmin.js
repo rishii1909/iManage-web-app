@@ -52,21 +52,6 @@ const MonitorAdminSchema = new Schema({
 
 }, { versionKey: false })
 
-MonitorAdminSchema.pre(
-    'save',
-    async function(next){
-        var self = this;
-        const hash = await bcrypt.hash(self.password, 10);
-        this.password = hash;
-    next();
-    }
-)
-
-MonitorAdminSchema.methods.check_password = async function(password){
-  const user = this;
-  const compare = await bcrypt.compare(password, user.password);
-  return compare;
-}
 
 const MonitorAdminModel = mongoose.model('Monitor Admin', MonitorAdminSchema);
 
