@@ -108,7 +108,7 @@ router.post('/add/one', async (req, res, next) => {
 router.post('/update', async (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
-    let udpate_user_id = data.udpate_user_id;
+    let update_user_id = data.update_user_id;
     const team_id = data.team_id;
     try {
         await TeamModel.findById({_id : team_id}, (err, response) => {
