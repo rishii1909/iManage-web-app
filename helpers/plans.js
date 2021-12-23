@@ -48,6 +48,7 @@ const monitor_types = new Set([
   "service_monitor", // 
   "cron_monitor", // 
   "snmp_monitor", // 
+  "performance_monitor"
 ])
 
 exports.binary_monitors = {
@@ -59,6 +60,7 @@ exports.binary_monitors = {
   "file_monitor" : false,
   "service_monitor" : true,
   "snmp_monitor" : false,
+  "performance_monitor" : false
 }
 exports.check_monitor_type = (type) => {
   return monitor_types.has(type);
