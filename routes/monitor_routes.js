@@ -19,7 +19,7 @@ const router = express.Router();
 const WebSocket = require("ws");
 var ab2str = require('arraybuffer-to-string');
 const { fetchWebSocket } = require('../helpers/websocket');
-const { parseDashboardDataResponse } = require('../helpers/monitors')
+const { parseDashboardDataResponse, parseDashboardDataResponseV2 } = require('../helpers/monitors')
 
 const ssh = new NodeSSH()
 
@@ -707,8 +707,9 @@ router.post('/dashboard/showcase', (req, res, next) => {
                     for (const monitor_type_key in element) {
 
                         //Loooping through all monitors.
-                        console.log("monitor_type_key", monitor_type_key);
                         const monitors = Object.keys(element[monitor_type_key]);
+                        if(monitors.length === 0) continue;
+                        console.log("monitor_type_key : ", monitor_type_key);
                         // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
                         // console.log(user_monitor_index, fetch_urls)
                         const target_agent = fetch_urls.find(obj => {
@@ -735,6 +736,167 @@ router.post('/dashboard/showcase', (req, res, next) => {
                             ).then((response) => {
                                 const resp = response.data;
                                 parseDashboardDataResponse(resp, final_response_object, monitor_type_key);
+                            }).catch((err) => {
+                                console.log(handle_error(err.message ? err.message : err))
+                            })
+                        }
+                        // Add check for enabled/disabled monitors here later.
+                    }
+                    
+                }
+            }
+        }
+        console.log('RETURNING RESPONSE')
+        return res.json(handle_success(final_response_object));
+    });
+})
+
+router.post('/dashboard/showcase/v2', (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    let test = null;
+    TeamModel.findById({ 
+        _id : team_id
+    }, async (err, team) => {
+        // Basic check
+        const invalid = no_docs_or_error(team, err);
+        if(invalid.is_true) return res.json(invalid.message);
+
+        const final_response_object = {
+            level_1 : {
+                two_states : {
+                    null : 0,
+                    0 : 0,
+                    1 : 0,
+                },
+                three_states : {
+                    null : 0,
+                    0 : 0,
+                    1 : 0,
+                    2 : 0
+                }
+            },
+
+            level_2 : {
+                two_states : {
+
+                },
+                three_states : {
+
+                }
+            },
+
+            level_3 : {
+                two_states : {
+
+                },
+                three_states : {
+
+                }
+            }
+        }
+        // Looping through all agents.
+        const team_monitors = team.monitors ? team.monitors : [];
+        const user_monitors = team.user_monitors.has(user_id) ? team.user_monitors.get(user_id) : [];
+        console.log(team.monitors, team.user_monitors)
+        const final_urls = []
+        const fetch_urls = await AgentModel.find({
+            _id : {
+                $in : Array.from( team_monitors.keys() ).concat(Object.keys(user_monitors))
+            }
+        }).select("api_url private");
+        if(fetch_urls.length <= 0) return res.json(handle_success([]))
+        const team_monitors_keys = Array.from(team_monitors.keys());
+        // console.log(team_monitors_keys, team_monitors);
+        if(team_monitors_keys.length > 0){
+            for (const index in team_monitors_keys ) {
+                const agent_key = team_monitors_keys[index];
+                const monitor_type = team_monitors.get(team_monitors_keys[index])
+            // }
+            // team_monitors.forEach( async (monitor_type, agent_key) => {
+                // console.log("monitor_type", monitor_type, "agent_key", agent_key)         
+                // Looping through all monitor types for an agent.
+                for (const monitor_type_key in monitor_type) {
+                    if (Object.hasOwnProperty.call(monitor_type, monitor_type_key)) {
+                        
+                        //Loooping through all monitors.
+                        const monitors = Object.keys(monitor_type[monitor_type_key]);
+                        // console.log(monitors);
+                        // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
+                        const target_agent = fetch_urls.find(obj => {
+                            return obj._id == agent_key
+                        });
+                        // console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
+                        // console.log(monitors);
+                        console.log("CURRENT PRIVATE STATUS IS : ", target_agent.private )
+                        if(target_agent.private){
+                            const ws = fetchWebSocket(target_agent._id);
+                            if(ws){
+                                const response_json = await webSocketSendJSON(ws, {
+                                    monitors,
+                                    api_method : 'post',
+                                    api_path : `/api/${monitor_type_key}/fetch/view/many`
+                                });
+                                console.log(response_json)
+                                parseDashboardDataResponseV2(response_json, final_response_object, monitor_type_key);
+                            }
+                        }else{
+                            console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
+                            await axios.post(
+                                `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
+                                {monitors}
+                            ).then((response) => {
+                                const resp = response.data;
+                                parseDashboardDataResponseV2(resp, final_response_object, monitor_type_key);
+                            }).catch((err) => {
+                                console.log(handle_error(err.message ? err.message : err))
+                            })
+                        }
+                        
+                        // Add check for enabled/disabled monitors here later.
+                    }
+                }
+                // return res.json({binaryObject, ternaryObject});
+            }
+        }
+        if(Object.keys(user_monitors).length > 0){
+            for (const agent_key in user_monitors) {
+                if (Object.hasOwnProperty.call(user_monitors, agent_key)) {
+                    const element = user_monitors[agent_key];
+                    // Looping through all monitor types for an agent.
+                    for (const monitor_type_key in element) {
+
+                        //Loooping through all monitors.
+                        const monitors = Object.keys(element[monitor_type_key]);
+                        if(monitors.length === 0) continue;
+                        console.log("monitor_type_key : ", monitor_type_key);
+                        // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
+                        // console.log(user_monitor_index, fetch_urls)
+                        const target_agent = fetch_urls.find(obj => {
+                            return obj._id == agent_key
+                        });
+                        console.log(target_agent.private, target_agent._id )
+                        if(target_agent.private){
+                            const ws = fetchWebSocket(target_agent._id);
+                            console.log("Websocket for this agent" + (ws ? "found" : "not found"))
+                            if(ws){
+                                const response_json = await webSocketSendJSON(ws, {
+                                    monitors,
+                                    api_method : 'post',
+                                    api_path : `/api/${monitor_type_key}/fetch/view/many`
+                                });
+                                console.log(response_json)
+                                parseDashboardDataResponseV2(response_json, final_response_object, monitor_type_key);
+                            }
+                        }else{
+                            console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
+                            await axios.post(
+                                `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
+                                {monitors}
+                            ).then((response) => {
+                                const resp = response.data;
+                                parseDashboardDataResponseV2(resp, final_response_object, monitor_type_key);
                             }).catch((err) => {
                                 console.log(handle_error(err.message ? err.message : err))
                             })
