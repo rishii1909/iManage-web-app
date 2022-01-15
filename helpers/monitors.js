@@ -156,8 +156,8 @@ exports.emitNotification = (nf) => {
             if(nf.top) notif_body = notif_body.replace("<%Top10%>", nf.top);
             else notif_body = notif_body.replace("<%Top10%>", "");
             template = {
-                header : "notif_header",
-                body : "notif_body",
+                header : notif_header,
+                body : notif_body,
                 ...(nf.top) && {top : nf.top}
             }
         }
