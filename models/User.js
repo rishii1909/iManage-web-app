@@ -25,6 +25,13 @@ const UserSchema = new Schema({
         type : Array,
         default : [],
     },
+    dashboard_level_3 : {
+        type : Schema.Types.Mixed,
+        default : {
+            two_states : {},
+            three_states : {}
+        }
+    },
     notifications : [{
         type : Schema.Types.ObjectId,
         ref : "Notification"

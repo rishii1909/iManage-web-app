@@ -68,7 +68,8 @@ exports.parseDashboardDataResponseV2 = (resp, final_response_object, monitor_typ
                 const rec = resp.response[key];
                 // Adding to level 1 - starts
                 if(binary_monitors[monitor_type_key] === true){
-                    final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
+                    // final_response_object.level_1.two_states[rec._id.monitor_status ? 0 : 1] += rec.count
+                    final_response_object.level_1.two_states[rec._id.monitor_status] += rec.count
                 }else{
                     final_response_object.level_1.three_states[rec._id.monitor_status] += rec.count
                 }
@@ -78,12 +79,19 @@ exports.parseDashboardDataResponseV2 = (resp, final_response_object, monitor_typ
                 let device_category = null;
                 if(binary_monitors[monitor_type_key] == true){
                     device_category = "two_states";
-                    rec._id.monitor_status = rec._id.monitor_status ? 0 : 1;
+                    console.log(rec._id.monitor_status)
+                    // rec._id.monitor_status = rec._id.monitor_status ? 0 : 1;
+                    rec._id.monitor_status = rec._id.monitor_status;
+                    console.log(rec._id)
                 }else{
                     device_category = "three_states";
                 }
-                if( final_response_object.level_2[device_category][rec._id.device] && final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] ){
-                    final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
+                if( final_response_object.level_2[device_category][rec._id.device]){
+                    if(final_response_object.level_2[device_category][rec._id.device].hasOwnProperty(rec._id.monitor_status)){
+                        final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] += rec.count;
+                    }else{
+                        final_response_object.level_2[device_category][rec._id.device][rec._id.monitor_status] = rec.count;
+                    }
                 }else{
                     final_response_object.level_2[device_category][rec._id.device] = {
                         [rec._id.monitor_status] : rec.count
@@ -93,7 +101,7 @@ exports.parseDashboardDataResponseV2 = (resp, final_response_object, monitor_typ
 
                 // Adding to level 3 - starts
                 // device and monitor in response
-                console.log(device_category)
+                // console.log(device_category)
                 if( final_response_object.level_3[device_category][rec._id.device] ){
                     final_response_object.level_3[device_category][rec._id.device][rec._id.monitor_ref] = {
                         label : rec._id.label,
@@ -112,6 +120,8 @@ exports.parseDashboardDataResponseV2 = (resp, final_response_object, monitor_typ
                 //     monitor_status : rec._id.monitor_status
                 // };
                 // Adding to level 3 - ends
+            }else{
+                console.log('IF STATEMENT FAILED HERE', key)
             }
         }
     }
@@ -132,23 +142,27 @@ exports.emitNotification = (nf) => {
         let notif_users = []
         let notif_header = monitor.notification_template.header;
         let notif_body = monitor.notification_template.body;
-        notif_header = notif_header.replace("<%Monitor%>", nf.monitor_name);
-        notif_header = notif_header.replace("<%Status%>", stats(nf.current_monitor_status, nf.is_binary));
-        notif_header = notif_header.replace("<%EventDT%>", nf.event_dt);
-        notif_header = notif_header.replace("<%EventMessage%>", nf.alert_verbose);
-        notif_body = notif_body.replace("<%Monitor%>", nf.monitor_name);
-        notif_body = notif_body.replace("<%Status%>", stats(nf.current_monitor_status, nf.is_binary));
-        notif_body = notif_body.replace("<%EventDT%>", nf.event_dt);
-        notif_body = notif_body.replace("<%EventMessage%>", nf.alert_verbose);
-        if(nf.top) notif_body = notif_body.replace("<%Top10%>", nf.top);
-        else notif_body = notif_body.replace("<%Top10%>", "");
-        let template = {
-            header : notif_header,
-            body : notif_body,
-            ...(nf.top) && {top : nf.top}
+        const dont_send_notifs = nf.dont_send_notifs;
+        let template = {}
+        if(!dont_send_notifs){
+            notif_header = notif_header.replace("<%Monitor%>", nf.monitor_name);
+            notif_header = notif_header.replace("<%Status%>", stats(nf.current_monitor_status, nf.is_binary));
+            notif_header = notif_header.replace("<%EventDT%>", nf.event_dt);
+            notif_header = notif_header.replace("<%EventMessage%>", nf.alert_verbose);
+            notif_body = notif_body.replace("<%Monitor%>", nf.monitor_name);
+            notif_body = notif_body.replace("<%Status%>", stats(nf.current_monitor_status, nf.is_binary));
+            notif_body = notif_body.replace("<%EventDT%>", nf.event_dt);
+            notif_body = notif_body.replace("<%EventMessage%>", nf.alert_verbose);
+            if(nf.top) notif_body = notif_body.replace("<%Top10%>", nf.top);
+            else notif_body = notif_body.replace("<%Top10%>", "");
+            template = {
+                header : "notif_header",
+                body : "notif_body",
+                ...(nf.top) && {top : nf.top}
+            }
         }
-        console.log(template)
         notif_users.push(monitor.creator)
+        // notif_users.push('61b04e920467cf244424bc60')
         if(monitor.assigned_users && monitor.assigned_users.length > 0){
             notif_users.concat(monitor.assigned_users);
         }
@@ -164,30 +178,43 @@ exports.emitNotification = (nf) => {
                     notif_users.concat(team.monitoring_admins);
                 }
 
-                pushNotification(notif_users, {...nf, ...template});
+                pushNotification(notif_users, {...nf, ...template, ...{device : monitor.device_id}}, dont_send_notifs);
             });
         }else{
-            pushNotification(notif_users, {...nf, ...template});
+            pushNotification(notif_users, {...nf, ...template, ...{device : monitor.device_id}}, dont_send_notifs);
         }
+
 
     });
 }
 
-function pushNotification(users, notification){
-    console.log("Pushing notification to users...")
-    console.log(users);
+function pushNotification(users, notification, dont_send_notifs){
+    console.log("Pushing notification to users...", users)
     NotificationModel.create(notification, (err, notif) => {
         if(err) console.log(err);
         if(notif){
-            UserModel.updateMany({ 
+
+            const device_category = `${notification.is_binary ? "two" : "three"}_states`
+            const userManyUpdateObject = {
+                ...(!dont_send_notifs) && { $push : {
+                    notifications : notif._id,
+                }},
+                [ `dashboard_level_1.${device_category}.${notification.monitor_ref}` ] : notification.current_monitor_status,
+            
+                [ `dashboard_level_2.${device_category}.${notification.device}.${notification.monitor_ref}` ] : notification.current_monitor_status,
+            
+                [ `dashboard_level_3.${device_category}.${notification.device}.${notification.monitor_ref}` ] : {
+                    label : notification.monitor_name,
+                    monitor_status : notification.current_monitor_status
+                },
+            }
+
+            UserModel.updateMany({
                 _id: {
                     $in : users
                 }
-            }, {
-                $push : {
-                    notifications : notif._id
-                }
             },
+            userManyUpdateObject,
             {upsert : true},
             (err) => {
                if(err){
