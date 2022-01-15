@@ -1093,7 +1093,6 @@ router.post('/dashboard/calibrate', (req, res, next) => {
 
 router.post('/dashboard/showcase/v3', (req, res, next) => {
   const data = req.body;
-
   if(!data.user_id) return res.json("No User ID given.")
   UserModel.findOne({
       _id: data.user_id,
@@ -1136,21 +1135,19 @@ router.post('/dashboard/showcase/v3', (req, res, next) => {
                 }
             }
         }
-        const lvl_1 = user.dashboard_level_1;
-        const lvl_2 = user.dashboard_level_2;
         let obtained_devices = [];
         let devices_map = {};
         // Collecting device ids
-        for (const type in lvl_2) {
-            if (Object.hasOwnProperty.call(lvl_2, type)) {
-                let devices = lvl_2[type];
+        for (const type in user.dashboard_level_3) {
+            if (Object.hasOwnProperty.call(user.dashboard_level_3, type)) {
+                let devices = user.dashboard_level_3[type];
+                console.log(devices)
                 if(devices){
                     devices = Object.keys(devices);
                     obtained_devices = obtained_devices.concat(devices);
                 }
             }
         }
-
         if(obtained_devices.length === 0) return res.json(handle_success(response))
         
         // Fetching device names
@@ -1169,6 +1166,7 @@ router.post('/dashboard/showcase/v3', (req, res, next) => {
                 devices_map[device._id] = device.name;
             })
         });
+        console.log(devices_map)
 
         // Parse all three level from level 3 dashboard :
         // console.log(user.dashboard_level_3)
