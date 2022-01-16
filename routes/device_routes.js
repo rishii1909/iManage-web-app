@@ -241,25 +241,18 @@ router.post('/update/team', async (req, res, next) => {
                 return res.json(not_authenticated);
             }
 
-            const update_device_object = {
-                ...(data.name) && {name : data.name},
-                ...(data.team_id) && {team_id : data.team_id},
-                ...(data.snmp) && {snmp : data.snmp},
-                ...(data.community_string) && {snmp : data.community_string},
-                ...(data.type) && {type : data.type},
-                
-            }
+            const update_device_object = data
 
-            // const creds = {
-            //     ...(data.username) && {username : data.username},
-            //     ...(data.host) && {host : data.host},
-            //     ...(data.password) && { password : data.password },
-            //     ...(data.privateKey) && { privateKey : data.privateKey },
-            //     ...(data.passphrase) && { passphrase : data.passphrase },
-            // }
-            // if(creds.keys(obj).length !== 0){
-            //     update_device_object.creds = creds;
-            // }
+            const creds = {
+                ...(data.username) && {username : data.username},
+                ...(data.host) && {host : data.host},
+                ...(data.password) && { password : data.password },
+                ...(data.privateKey) && { privateKey : data.privateKey },
+                ...(data.passphrase) && { passphrase : data.passphrase },
+            }
+            if(creds.keys(obj).length !== 0){
+                update_device_object.creds = creds;
+            }
 
             DeviceModel.findOneAndUpdate({
                 _id: device_id,
@@ -301,25 +294,16 @@ router.post('/update/user', async (req, res, next) => {
             )) return res.json(handle_error("Device not found in your account."))
 
 
-            const update_device_object = {
-                ...(data.name) && {name : data.name}, 
-                ...(data.team_id) && {team_id : data.team_id},
-                ...(data.snmp) && {snmp : data.snmp},
-                ...(data.community_string) && {snmp : data.community_string},
-                ...(data.type) && {type : data.type},
-                
-            }
+            const update_device_object = data
 
-            // const creds = {
-            //     ...(data.username) && {username : data.username},
-            //     ...(data.host) && {host : data.host},
-            //     ...(data.password) && { password : data.password },
-            //     ...(data.privateKey) && { privateKey : data.privateKey },
-            //     ...(data.passphrase) && { passphrase : data.passphrase },
-            // }
-            // if(creds.keys(obj).length !== 0){
-            //     update_device_object.creds = creds;
-            // }
+            const creds = {
+                ...(data.password) && { password : data.password },
+                ...(data.privateKey) && { privateKey : data.privateKey },
+                ...(data.passphrase) && { passphrase : data.passphrase },
+            }
+            if(creds.keys(obj).length !== 0){
+                update_device_object.creds = creds;
+            }
 
             DeviceModel.findOneAndUpdate({
                 _id: device_id,
