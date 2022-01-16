@@ -1431,6 +1431,9 @@ router.post('/enumerate/monitor', (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     const monitor_id = data.monitor_id;
+    const monitor_ref = data.monitor_ref;
+
+    if(!monitor_id && !monitor_ref) return res.json(handle_error("No identifiers provided"));
     if( found_invalid_ids([user_id, team_id, monitor_id]).invalid ){
         return res.json(handle_error("Invalid parameter [id]s."))
     }
@@ -1452,8 +1455,19 @@ router.post('/enumerate/monitor', (req, res, next) => {
         //     )
         // ){
             // Enumerate the monitor
-            await MonitorModel.findById({ 
-            _id : monitor_id
+
+            // Model.findOne({
+            //     field: filter,
+            // }).then((doc) => {
+            //     if (!doc) {
+            //         console.log("message")
+            //     } else{
+                    
+            //     }
+            // });
+            await MonitorModel.findOne({ 
+            ...(monitor_id) && {_id : monitor_id},
+            ...(monitor_ref) && {monitor_ref : monitor_ref}
             })
             .populate("agent_id").exec( async (err, monitor) => {
                 // Call the remote agent API.
