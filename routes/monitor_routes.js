@@ -1778,11 +1778,11 @@ router.post('/delete/user', async (req, res, next) => {
                                 }
                             }, {
                                 $unset : {
-                                    [ `dashboard_level_1.${device_category}.${notification.monitor_ref}` ] : 1,
+                                    [ `dashboard_level_1.${monitor_type}.${doc.monitor_ref}` ] : 1,
                 
-                                    [ `dashboard_level_2.${device_category}.${notification.device}.${notification.monitor_ref}` ] : 1,
+                                    [ `dashboard_level_2.${monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
                                     
-                                    [ `dashboard_level_3.${device_category}.${notification.device}.${notification.monitor_ref}` ] : 1
+                                    [ `dashboard_level_3.${monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1
                                 }
                             },
                             {upsert : true},
