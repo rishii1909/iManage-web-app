@@ -103,7 +103,7 @@ router.post('/create/team', async (req, res, next) => {
                     // const remote_response = response.data;
                     // If monitor could not be created.
                     if(!remote_response.accomplished) return res.json(remote_response);
-                    const monitor = await MonitorModel.create({...monitor_info, ...{monitor_ref : remote_response.agent_id}});
+                    const monitor = await MonitorModel.create({...monitor_info, ...{monitor_ref : remote_response.agent_id, monitor_type : monitor_type}});
                     if(!monitor) return res.json(handle_error("Monitor was created sucessfully, but could not be added to the central database."));
 
                     // Step 3 : Set update info
@@ -546,7 +546,7 @@ router.post('/create/user', async (req, res, next) => {
                     // const remote_response = response.data;
                     // If monitor could not be created.
                     if(!remote_response.accomplished) return res.json(remote_response);
-                    const monitor = await MonitorModel.create({...monitor_info, ...{monitor_ref : remote_response.agent_id}});
+                    const monitor = await MonitorModel.create({...monitor_info, ...{monitor_ref : remote_response.agent_id, monitor_type : monitor_type}});
                     if(!monitor) return res.json(handle_error("Monitor was created sucessfully, but could not be added to the central database."));
 
                     // Step 3 : Set update info
@@ -1643,16 +1643,12 @@ router.post('/delete/team', async (req, res, next) => {
                                     $in : users
                                 }
                             }, {
-                                $push : {
-                                    notifications : notif._id,
-                                },
-                
                                 $unset : {
-                                    [ `dashboard_level_1.${device_category}.${notification.monitor_ref}` ] : 1,
+                                    [ `dashboard_level_1.${doc.monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
                 
-                                    [ `dashboard_level_2.${device_category}.${notification.device}.${notification.monitor_ref}` ] : 1,
+                                    [ `dashboard_level_2..${doc.monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
                                     
-                                    [ `dashboard_level_3.${device_category}.${notification.device}.${notification.monitor_ref}` ] : 1
+                                    [ `dashboard_level_3.${doc.monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1
                                 }
                             },
                             {upsert : true},
@@ -1781,10 +1777,6 @@ router.post('/delete/user', async (req, res, next) => {
                                     $in : users
                                 }
                             }, {
-                                $push : {
-                                    notifications : notif._id,
-                                },
-                
                                 $unset : {
                                     [ `dashboard_level_1.${device_category}.${notification.monitor_ref}` ] : 1,
                 

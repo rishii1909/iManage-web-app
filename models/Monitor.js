@@ -65,6 +65,10 @@ const MonitorSchema = new Schema({
         type : mongoose.Schema.ObjectId,
         ref : "User"
     },
+    monitor_type : {
+        type : String,
+        required : true,
+    },
     fromTeam : {
         type : Boolean,
         default : false
