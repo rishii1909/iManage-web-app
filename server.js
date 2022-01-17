@@ -118,6 +118,17 @@ const httpsServer = https.createServer({
   ]
 }, app)
 
+const httpsServer2 = https.createServer({
+  // key: fs.readFileSync(path.join(__dirname, 'cert', 'key.pem')),
+  // cert: fs.readFileSync(path.join(__dirname, 'cert', 'cert.pem')),
+
+  key: fs.readFileSync(path.join(__dirname, 'imanage_host_key', 'imanage_host_key.pem')),
+  cert: fs.readFileSync(path.join(__dirname, 'imanage_host_key', 'imanage_host.crt')),
+  ca: [
+    fs.readFileSync(path.join(__dirname, 'imanage_host_key', 'imanage_host.ca-bundle'))
+  ]
+}, app)
+
 const httpServer = http.createServer(app)
 
 
@@ -141,10 +152,14 @@ wss.on('connection', (ws, req) => {
   })
 })
 
-httpsServer.listen(process.env.PORT || 3001, () => {
-  console.log("HTTPS Server initiated at port : " + (process.env.PORT || 3001))
+httpsServer.listen(process.env.PORT || 443, () => {
+  console.log("HTTPS Server initiated at port : " + (process.env.PORT || 443))
+})
+
+httpsServer2.listen(3001, () => {
+  console.log("HTTPS Server initiated at port : " + (3001))
 })
 
 httpServer.listen(3002, () => {
-  console.log("HTTP Server initiated at port : " + (process.env.PORT || 3001))
+  console.log("HTTP Server initiated at port : " + (process.env.PORT || 80))
 })
