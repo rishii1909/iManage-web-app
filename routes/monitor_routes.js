@@ -959,7 +959,7 @@ router.post('/dashboard/calibrate', (req, res, next) => {
                 }
             }
             MonitorModel.find({ 
-                _id : { $in : monitors_arr}
+                monitor_ref : { $in : monitors_arr}
             },
             'monitor_ref', 
             (err, valid_monitors) => {
@@ -967,12 +967,10 @@ router.post('/dashboard/calibrate', (req, res, next) => {
                     return res.json(handle_generated_error(err))
                 }
                 if(!valid_monitors) return res.json(not_found("Monitors"));
-
                 const valid_monitors_arr = [];
                 valid_monitors.forEach((monitor) => {
                     valid_monitors_arr.push(monitor.monitor_ref)
                 })
-
                 const purge_invalids = {}
                 for (const state_key in dashboard) {
                     if (Object.hasOwnProperty.call(dashboard, state_key)) {
