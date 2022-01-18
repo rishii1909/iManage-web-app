@@ -919,7 +919,7 @@ router.post('/dashboard/calibrate', (req, res, next) => {
     const data = req.body;
     const user_id = data.user_id;
     const team_id = data.team_id;
-    let test = null;
+
     TeamModel.findById({ 
         _id : team_id
     }, async (err, team) => {
@@ -927,165 +927,85 @@ router.post('/dashboard/calibrate', (req, res, next) => {
         const invalid = no_docs_or_error(team, err);
         if(invalid.is_true) return res.json(invalid.message);
 
-        const final_response_object = {
-            level_1 : {
-                two_states : {
-                    null : 0,
-                    0 : 0,
-                    1 : 0,
-                },
-                three_states : {
-                    null : 0,
-                    0 : 0,
-                    1 : 0,
-                    2 : 0
-                }
-            },
-
-            level_2 : {
-                two_states : {
-
-                },
-                three_states : {
-
-                }
-            },
-
-            level_3 : {
-                two_states : {
-
-                },
-                three_states : {
-
-                }
-            }
-        }
-        // Looping through all agents.
-        const team_monitors = team.monitors ? team.monitors : [];
-        const user_monitors = team.user_monitors.has(user_id) ? team.user_monitors.get(user_id) : [];
-        console.log(team.monitors, team.user_monitors)
-        const final_urls = []
-        const fetch_urls = await AgentModel.find({
-            _id : {
-                $in : Array.from( team_monitors.keys() ).concat(Object.keys(user_monitors))
-            }
-        }).select("api_url private");
-        if(fetch_urls.length <= 0) return res.json(handle_success([]))
-        const team_monitors_keys = Array.from(team_monitors.keys());
-        // console.log(team_monitors_keys, team_monitors);
-        if(team_monitors_keys.length > 0){
-            for (const index in team_monitors_keys ) {
-                const agent_key = team_monitors_keys[index];
-                const monitor_type = team_monitors.get(team_monitors_keys[index])
-            // }
-            // team_monitors.forEach( async (monitor_type, agent_key) => {
-                // console.log("monitor_type", monitor_type, "agent_key", agent_key)         
-                // Looping through all monitor types for an agent.
-                for (const monitor_type_key in monitor_type) {
-                    if (Object.hasOwnProperty.call(monitor_type, monitor_type_key)) {
-                        
-                        //Loooping through all monitors.
-                        const monitors = Object.keys(monitor_type[monitor_type_key]);
-                        // console.log(monitors);
-                        // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
-                        const target_agent = fetch_urls.find(obj => {
-                            return obj._id == agent_key
-                        });
-                        // console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
-                        // console.log(monitors);
-                        console.log("CURRENT PRIVATE STATUS IS : ", target_agent.private )
-                        if(target_agent.private){
-                            const ws = fetchWebSocket(target_agent._id);
-                            if(ws){
-                                const response_json = await webSocketSendJSON(ws, {
-                                    monitors,
-                                    api_method : 'post',
-                                    api_path : `/api/${monitor_type_key}/fetch/view/many`
-                                });
-                                console.log(response_json)
-                                parseDashboardDataResponseV2(response_json, final_response_object, monitor_type_key);
-                            }
-                        }else{
-                            console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
-                            axios.post(
-                                `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
-                                {monitors}
-                            ).then((response) => {
-                                console.log(response)
-                                const resp = response.data;
-                                parseDashboardDataResponseV2(resp, final_response_object, monitor_type_key);
-                            }).catch((err) => {
-                                console.log(handle_error(err.message ? err.message : err))
-                            })
-                        }
-                        
-                        // Add check for enabled/disabled monitors here later.
-                    }
-                }
-                // return res.json({binaryObject, ternaryObject});
-            }
-        }
-        if(Object.keys(user_monitors).length > 0){
-            for (const agent_key in user_monitors) {
-                if (Object.hasOwnProperty.call(user_monitors, agent_key)) {
-                    const element = user_monitors[agent_key];
-                    // Looping through all monitor types for an agent.
-                    for (const monitor_type_key in element) {
-
-                        //Loooping through all monitors.
-                        const monitors = Object.keys(element[monitor_type_key]);
-                        if(monitors.length === 0) continue;
-                        console.log("Monitor type key : ", monitor_type_key);
-                        // axios.post(`${agent.api_url}/api/${data.type}/mutate/create`)
-                        // console.log(user_monitor_index, fetch_urls)
-                        const target_agent = fetch_urls.find(obj => {
-                            return obj._id == agent_key
-                        });
-                        console.log(target_agent.private, target_agent._id )
-                        if(target_agent.private){
-                            const ws = fetchWebSocket(target_agent._id);
-                            console.log("Websocket for this agent : " + (ws ? "found" : "not found"))
-                            if(ws){
-                                const response_json = await webSocketSendJSON(ws, {
-                                    monitors,
-                                    api_method : 'post',
-                                    api_path : `/api/${monitor_type_key}/fetch/view/many`
-                                });
-                                // console.log(response_json)
-                                parseDashboardDataResponseV2(response_json, final_response_object, monitor_type_key);
-                            }
-                        }else{
-                            console.log("Sending axios request to : " + `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many` )
-                            await axios.post(
-                                `${target_agent.api_url}/api/${monitor_type_key}/fetch/view/many`,
-                                {monitors}
-                            ).then((response) => {
-                                // console.log(response.data)
-                                // console.log(response.data.response[0]._id)
-                                const resp = response.data;
-                                parseDashboardDataResponseV2(resp, final_response_object, monitor_type_key);
-                            }).catch((err) => {
-                                console.log(handle_error(err.message ? err.message : err))
-                            })
-                        }
-                        // Add check for enabled/disabled monitors here later.
-                    }
-                    
-                }
-            }
-        }
-        UserModel.findOneAndUpdate({
-            _id: user_id,
-        }, {
-            dashboard_level_3: final_response_object.level_3,
+        UserModel.findById({ 
+            _id : user_id
         }, (err, user) => {
-            if (err) {
-                return res.json(handle_generated_error(err))
+            if(err){
+                return res.json(handle_generated_error(err));
             }
-            return res.json(handle_success({
-                message : "Dashboard calibrated successfully!",
-                dashboard : final_response_object
-            }))
+
+            if(!user) return res.json(not_found("User"));
+
+            const monitors_arr = [];
+            const metadata_map = {};
+            const dashboard = user.dashboard_level_3;
+            
+            for (const state_key in dashboard) {
+                if (Object.hasOwnProperty.call(dashboard, state_key)) {
+                    const devices = dashboard[state_key];
+                    for (const device_id in devices) {
+                        if (Object.hasOwnProperty.call(devices, device_id)) {
+                            const monitors = devices[device_id];
+                            for (const monitor_ref in monitors) {
+                                if (Object.hasOwnProperty.call(monitors, monitor_ref)) {
+                                    console.log(`${state_key} | ${device_id} | ${monitor_ref}`)
+                                    
+                                    monitors_arr.push(monitor_ref);
+                                    metadata_map[monitor_ref] = `dashboard_level_3.${state_key}.${device_id}.${monitor_ref}`
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            MonitorModel.find({ 
+                _id : { $in : monitors_arr}
+            },
+            'monitor_ref', 
+            (err, valid_monitors) => {
+                if (err) {
+                    return res.json(handle_generated_error(err))
+                }
+                if(!valid_monitors) return res.json(not_found("Monitors"));
+
+                const valid_monitors_arr = [];
+                valid_monitors.forEach((monitor) => {
+                    valid_monitors_arr.push(monitor.monitor_ref)
+                })
+
+                const purge_invalids = {}
+                for (const state_key in dashboard) {
+                    if (Object.hasOwnProperty.call(dashboard, state_key)) {
+                        const devices = dashboard[state_key];
+                        for (const device_id in devices) {
+                            if (Object.hasOwnProperty.call(devices, device_id)) {
+                                const monitors = devices[device_id];
+                                for (const monitor_ref in monitors) {
+                                    if (Object.hasOwnProperty.call(monitors, monitor_ref)) {
+                                        
+                                        if(!valid_monitors_arr.includes(monitor_ref)){
+                                            purge_invalids[metadata_map[monitor_ref]] = 1;
+                                        }
+
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                UserModel.findOneAndUpdate({
+                    _id: user_id,
+                }, {
+                    $unset : purge_invalids
+                }, (err, user) => {
+                    if (err) {
+                        return res.json(handle_generated_error(err))
+                    }
+                    return res.json(handle_success({
+                        message : "Dashboard calibrated successfully!",
+                    }))
+                });
+            });
         });
     });
 })
@@ -1165,10 +1085,8 @@ router.post('/dashboard/showcase/v3', (req, res, next) => {
             returned_devices.forEach((device) => {
                 devices_map[device._id] = device.name;
             })
-        });
-        console.log(devices_map)
 
-        // Parse all three level from level 3 dashboard :
+            // Parse all three level from level 3 dashboard :
         // console.log(user.dashboard_level_3)
         for (const type in user.dashboard_level_3) {
             if (Object.hasOwnProperty.call(user.dashboard_level_3, type)) {
@@ -1176,7 +1094,7 @@ router.post('/dashboard/showcase/v3', (req, res, next) => {
                 for (const device_id in devices) {
                     if (Object.hasOwnProperty.call(devices, device_id)) {
                         const monitors = devices[device_id];
-                        console.log(devices_map, device_id, devices_map[device_id])
+                        console.log(device_id, devices_map[device_id])
                         const device = devices_map[device_id]
                         for (const monitor_ref in monitors) {
                             if (Object.hasOwnProperty.call(monitors, monitor_ref)) {
@@ -1215,6 +1133,9 @@ router.post('/dashboard/showcase/v3', (req, res, next) => {
         // Adding data to level 2 response
         
         return res.json(handle_success(response))
+
+        });
+
   });
 })
 
@@ -1544,8 +1465,6 @@ router.post('/enumerate/monitor', (req, res, next) => {
     });
 })
 
-
-
 router.post('/delete/team', async (req, res, next) => {
     try {
         const data = req.body;
@@ -1644,11 +1563,11 @@ router.post('/delete/team', async (req, res, next) => {
                                 }
                             }, {
                                 $unset : {
-                                    [ `dashboard_level_1.${doc.monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
+                                    [ `dashboard_level_1.${binary_monitors[monitor_type] ? "two_states" : "three_states"}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
                 
-                                    [ `dashboard_level_2..${doc.monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
+                                    [ `dashboard_level_2.${binary_monitors[monitor_type] ? "two_states" : "three_states"}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
                                     
-                                    [ `dashboard_level_3.${doc.monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1
+                                    [ `dashboard_level_3.${binary_monitors[monitor_type] ? "two_states" : "three_states"}.${doc.device_id}.${doc.monitor_ref}` ] : 1
                                 }
                             },
                             {upsert : true},
@@ -1772,17 +1691,17 @@ router.post('/delete/user', async (req, res, next) => {
                             }
 
                             const users = team.users;
-                            UserModel.updateMany({ 
+                            UserModel.updateMany({
                                 _id: {
                                     $in : users
                                 }
                             }, {
                                 $unset : {
-                                    [ `dashboard_level_1.${monitor_type}.${doc.monitor_ref}` ] : 1,
+                                    [ `dashboard_level_1.${binary_monitors[monitor_type] ? "two_states" : "three_states"}.${doc.monitor_ref}` ] : 1,
                 
-                                    [ `dashboard_level_2.${monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
+                                    [ `dashboard_level_2.${binary_monitors[monitor_type] ? "two_states" : "three_states"}.${doc.device_id}.${doc.monitor_ref}` ] : 1,
                                     
-                                    [ `dashboard_level_3.${monitor_type}.${doc.device_id}.${doc.monitor_ref}` ] : 1
+                                    [ `dashboard_level_3.${binary_monitors[monitor_type] ? "two_states" : "three_states"}.${doc.device_id}.${doc.monitor_ref}` ] : 1
                                 }
                             },
                             {upsert : true},
@@ -1813,11 +1732,12 @@ router.post('/delete/user', async (req, res, next) => {
 
 router.post('/remote', async (req, res, next) => {
     const data = req.body;
+    console.log("calling remote API");
     const ws = fetchWebSocket(data.agent_id);
     if(!ws) return res.json(handle_error("Remote agent is not connected to the central server."));
 
     const response = await webSocketSendJSON(ws, data);
-    console.log(response);
+    console.log(response ? "response recieved" : "response failed");
     return res.json(response);
 })
 
