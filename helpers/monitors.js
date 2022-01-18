@@ -3,6 +3,19 @@ const TeamModel = require("../models/Team");
 const UserModel = require('../models/User');
 const NotificationModel = require('../models/Notification');
 const { binary_monitors } = require("./plans");
+const nodemailer = require("nodemailer");
+
+process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0;
+
+let transporter = nodemailer.createTransport({
+    host: "smtp.hostinger.com",
+    port: 465,
+    secure: true, // true for 465, false for other ports
+    auth: {
+      user: "notifications@imanage.host", 
+      pass: "Reset123!",
+    },
+});
 
 exports.parseDashboardDataResponse = (resp, final_response_object, monitor_type_key) => {
     if(resp.accomplished){
@@ -208,6 +221,22 @@ function pushNotification(users, notification, dont_send_notifs){
                     monitor_status : notification.current_monitor_status
                 },
             }
+
+            UserModel.find({_id: { $in : users}}).distinct(
+            'email', 
+            async (err, emails) => {
+               if(err) return console.log(err);
+               if(!emails) return;
+
+              // send mail with defined transport object
+              let info = await transporter.sendMail({
+                from: '"iManage Notifications System" <notifications@imanage.host>', // sender address
+                to: emails, // list of receivers
+                subject: notification.header, // Subject line
+                text: notification.body, // plain text body
+              });
+              console.log("Message sent: %s", info.messageId);
+            });
 
             UserModel.updateMany({
                 _id: {
