@@ -250,7 +250,7 @@ router.post('/update/team', async (req, res, next) => {
                 ...(data.privateKey) && { privateKey : data.privateKey },
                 ...(data.passphrase) && { passphrase : data.passphrase },
             }
-            if(creds.keys(obj).length !== 0){
+            if(Object.keys(creds).length !== 0){
                 update_device_object.creds = creds;
             }
 
@@ -301,7 +301,7 @@ router.post('/update/user', async (req, res, next) => {
                 ...(data.privateKey) && { privateKey : data.privateKey },
                 ...(data.passphrase) && { passphrase : data.passphrase },
             }
-            if(creds.keys(obj).length !== 0){
+            if(Object.keys(creds).length !== 0){
                 update_device_object.creds = creds;
             }
 
