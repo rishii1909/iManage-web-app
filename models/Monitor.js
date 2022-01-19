@@ -67,7 +67,7 @@ const MonitorSchema = new Schema({
     },
     monitor_type : {
         type : String,
-        required : true,
+        // required : true,
     },
     fromTeam : {
         type : Boolean,
