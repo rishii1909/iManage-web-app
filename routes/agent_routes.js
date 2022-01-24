@@ -15,6 +15,8 @@ const router = express.Router();
 
 const ssh = new NodeSSH()
 
+const cloud_agent_id = "61a35d2722fd3300162c2bb1";
+
 const verbose = "agent"
 router.post('/create/team', async (req, res, next) => {
     try {
@@ -511,26 +513,42 @@ router.post('/delete/team', (req, res, next) => {
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }
         //Delete the agent
-        AgentModel.deleteOne({
-            _id: data.agent_id
-        }, (err) => {
-            if(err){
-                return res.json(handle_generated_error(err));
-            }else{
-                TeamModel.updateOne({
-                    _id: team_id
-                }, {
-                    $pull : {agents : data.agent_id},
-                    $inc : { agent_occupancy : -1 }
-                },
-                (err) => {
-                   if(err){
-                       console.log(`Error: ` + err)
-                   }
-                });
-                return res.json(handle_success("Agent deleted successfully."));
-            }
-        });
+        if(data.agent_id == cloud_agent_id){
+            TeamModel.updateOne({
+                _id: team_id
+            }, {
+                $pull : {agents : data.agent_id},
+                $inc : { agent_occupancy : -1 }
+            },
+            (err) => {
+               if(err){
+                   return res.json(handle_generated_error(err))
+               }
+               return res.json(handle_success("Agent deleted successfully."));
+            });
+        }
+        else{
+            AgentModel.deleteOne({
+                _id: data.agent_id
+            }, (err) => {
+                if(err){
+                    return res.json(handle_generated_error(err));
+                }else{
+                    TeamModel.updateOne({
+                        _id: team_id
+                    }, {
+                        $pull : {agents : data.agent_id},
+                        $inc : { agent_occupancy : -1 }
+                    },
+                    (err) => {
+                       if(err){
+                           console.log(`Error: ` + err)
+                       }
+                    });
+                    return res.json(handle_success("Agent deleted successfully."));
+                }
+            });
+        }
         
     });
 })
@@ -563,24 +581,41 @@ router.post('/delete/user', (req, res, next) => {
         // console.log(team.user_agents.get(delete_user_id))
 
         //Delete the agent
-        AgentModel.deleteOne({
-            _id: data.agent_id
-        }, (err) => {
-            if(err){
-                return res.json(handle_generated_error(err));
-            }else{
-                TeamModel.updateOne({
-                    _id: team_id
-                }, {
-                    $pull : {[`user_agents.${user_id}`] : agent_id},
-                    $inc : { agent_occupancy : -1 }
-                },
-                (err) => {
-                   if(err) return res.json(handle_generated_error(err))
-                   return res.json(handle_success("Agent deleted successfully."));
-                });
-            }
-        });
+        // return console.log(data.agent_id, cloud_agent_id, data.agent_id == cloud_agent_id);
+        if(data.agent_id == cloud_agent_id){
+            TeamModel.updateOne({
+                _id: team_id
+            }, {
+                $pull : {agents : data.agent_id},
+                $inc : { agent_occupancy : -1 }
+            },
+            (err) => {
+               if(err){
+                   return res.json(handle_generated_error(err))
+               }
+               return res.json(handle_success("Agent deleted successfully."));
+            });
+        }
+        else{
+            AgentModel.deleteOne({
+                _id: data.agent_id
+            }, (err) => {
+                if(err){
+                    return res.json(handle_generated_error(err));
+                }else{
+                    TeamModel.updateOne({
+                        _id: team_id
+                    }, {
+                        $pull : {[`user_agents.${user_id}`] : agent_id},
+                        $inc : { agent_occupancy : -1 }
+                    },
+                    (err) => {
+                       if(err) return res.json(handle_generated_error(err))
+                       return res.json(handle_success("Agent deleted successfully."));
+                    });
+                }
+            });
+        }
         
     });
 })
