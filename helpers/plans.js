@@ -48,7 +48,8 @@ const monitor_types = new Set([
   "service_monitor", // 
   "cron_monitor", // 
   "snmp_monitor", // 
-  "performance_monitor"
+  "performance_monitor",
+  "sql_monitor"
 ])
 
 exports.binary_monitors = {
@@ -63,6 +64,7 @@ exports.binary_monitors = {
   "performance_monitor" : false
 }
 exports.check_monitor_type = (type) => {
+  console.log(type)
   return monitor_types.has(type);
 }
 exports.invalid_monitor_type = () => { return this.handle_error("Given monitor type is invalid.") };
