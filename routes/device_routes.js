@@ -544,9 +544,9 @@ router.post('/delete/team', (req, res, next) => {
                     $inc : { device_occupancy : -1 }
                 },
                 (err) => {
-                   if(err){
-                       console.log(`Error: ` + err)
-                   }
+                    if(err){
+                        console.log(`Error: ` + err)
+                    }
                 });
                 return res.json(handle_success("Device deleted successfully."));
             }
@@ -578,28 +578,76 @@ router.post('/delete/user', (req, res, next) => {
 
     
         if(!team.user_devices.has(user_id)) return res.json(handle_error("There are no devices in your account."))
-        if(!team.user_devices.get(user_id).includes(device_id)) return res.json(handle_error("The device you're trying to delete is not present in your account."))
+        // if(!team.user_devices.get(user_id).includes(device_id)) return res.json(handle_error("The device you're trying to delete is not present in your account."))
         
         // console.log(team.user_devices.get(delete_user_id))
+        return DeviceModel.findById({ 
+            _id : data.device_id
+        }, (err, device) => {
+            if(err) return res.json(handle_generated_error(err))
+            if(!device) return res.json(not_found("Device"))
 
-        //Delete the device
-        DeviceModel.deleteOne({
-            _id: data.device_id
-        }, (err) => {
-            if(err){
-                return res.json(handle_generated_error(err));
-            }else{
-                TeamModel.updateOne({
-                    _id: team_id
-                }, {
-                    $pull : {[`user_devices.${user_id}`] : device_id},
-                    $inc : { device_occupancy : -1 }
-                },
-                (err) => {
-                   if(err) return res.json(handle_generated_error(err));
-                   return res.json(handle_success("Device deleted successfully."));
-                });
+            const monitors = device.monitors;
+            const monitors_arr = [];
+            // monitors.map((el) => console.log(el))
+            // monitors.keys().forEach(el => console.log(el))
+            console.log("---------------------------------")
+            for(const el of monitors){
+                const agent_key = el[0];
+                const agent = el[1];
+                for (const monitor_type in agent) {
+                        if (Object.hasOwnProperty.call(agent, monitor_type)) {
+                            const monitor_ids = agent[monitor_type];
+                            for (const monitor_id in monitor_ids) {
+                                monitors_arr.push(monitor_id);
+                            }
+                        }
+                    }
             }
+
+            MonitorModel.find({ 
+                _id : {
+                    $in : monitors_arr
+                }
+            }, (err, docs) => {
+                if(err) return res.json(handle_generated_error(err));
+
+                if(docs.length > 0) return res.json(handle_error(`There are ${docs.length} monitors present in this device, please delete them before proceeding to delete this device.`))
+                //Delete the device
+                DeviceModel.deleteOne({
+                    _id: data.device_id
+                }, (err) => {
+                    if(err){
+                        return res.json(handle_generated_error(err));
+                    }else{
+                        TeamModel.updateOne({
+                            _id: team_id
+                        }, {
+                            $pull : {[`user_devices.${user_id}`] : device_id},
+                            $inc : { device_occupancy : -1 }
+                        },
+                        (err) => {
+                           if(err) return res.json(handle_generated_error(err));
+                           return res.json(handle_success("Device deleted successfully."));
+                        });
+                    }
+                });
+            });
+            // for (const agent_key in monitors) {
+            //     if (Object.hasOwnProperty.call(monitors, agent_key)) {
+            //         const agent = monitors[agent_key];
+            //         console.log("AGENT", agent)
+            //         // for (const monitor_type in agent) {
+            //         //     if (Object.hasOwnProperty.call(agent, monitor_type)) {
+            //         //         const monitor_ids = agent[monitor_type];
+            //         //         console.log(monitor_ids)
+            //         //         // for (const monitor_id in monitor_ids) {
+            //         //         //     console.log(monitor_id)
+            //         //         // }
+            //         //     }
+            //         // }
+            //     }
+            // }
         });
         
     });
