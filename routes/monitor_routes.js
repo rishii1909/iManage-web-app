@@ -1059,7 +1059,6 @@ router.post('/dashboard/showcase/v3', (req, res, next) => {
         for (const type in user.dashboard_level_3) {
             if (Object.hasOwnProperty.call(user.dashboard_level_3, type)) {
                 let devices = user.dashboard_level_3[type];
-                console.log(devices)
                 if(devices){
                     devices = Object.keys(devices);
                     obtained_devices = obtained_devices.concat(devices);
@@ -1067,7 +1066,7 @@ router.post('/dashboard/showcase/v3', (req, res, next) => {
             }
         }
         if(obtained_devices.length === 0) return res.json(handle_success(response))
-        
+        console.log(obtained_devices)
         // Fetching device names
         await DeviceModel.find({ 
             _id: { $in : obtained_devices }
@@ -1118,11 +1117,8 @@ router.post('/dashboard/showcase/v3', (req, res, next) => {
                                     response.level_3[type][device] = {}
                                 }
                                 response.level_3[type][device][monitor_ref] = monitor
-
-
                             }
                         }
-                        
                     }
                 }
             }
@@ -1735,7 +1731,7 @@ router.post('/remote', async (req, res, next) => {
     if(!ws) return res.json(handle_error("Remote agent is not connected to the central server."));
 
     const response = await webSocketSendJSON(ws, data);
-    console.log(response ? "response recieved" : "response failed");
+    console.log(response ? "response recieved" : "response failed", response);
     return res.json(response);
 })
 

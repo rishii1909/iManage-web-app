@@ -222,21 +222,24 @@ function pushNotification(users, notification, dont_send_notifs){
                 },
             }
 
-            UserModel.find({_id: { $in : users}}).distinct(
-            'email', 
-            async (err, emails) => {
-               if(err) return console.log(err);
-               if(!emails) return;
+            if(!dont_send_notifs){
+                UserModel.find({_id: { $in : users}}).distinct(
+                    'email', 
+                    async (err, emails) => {
 
-              // send mail with defined transport object
-              let info = await transporter.sendMail({
-                from: '"iManage Notifications System" <notifications@imanage.host>', // sender address
-                to: emails, // list of receivers
-                subject: notification.header, // Subject line
-                text: notification.body, // plain text body
-              });
-              console.log("Message sent: %s", info.messageId);
-            });
+                        if(err) return console.log(err);
+                        if(!emails) return;
+                        // console.log(notification)
+                        // send mail with defined transport object
+                        let info = await transporter.sendMail({
+                          from: '"iManage Notifications System" <notifications@imanage.host>', // sender address
+                          to: emails, // list of receivers
+                          subject: notification.header, // Subject line
+                          text: notification.body, // plain text body
+                        });
+                        console.log("Notification email sent : %s", info.messageId);
+                });
+            }
 
             UserModel.updateMany({
                 _id: {

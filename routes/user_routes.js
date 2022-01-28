@@ -3,7 +3,7 @@ const passport = require('passport');
 const jwt = require('jsonwebtoken');
 
 const TeamModel = require('../models/Team');
-const { handle_success, handle_error, is_root, no_docs_or_error, not_authenticated, exclusive_root_user_action } = require('../helpers/plans');
+const { handle_success, handle_error, is_root, no_docs_or_error, not_authenticated, exclusive_root_user_action, handle_generated_error } = require('../helpers/plans');
 const UserModel = require('../models/User');
 
 const router = express.Router();
@@ -14,17 +14,17 @@ router.post('/update', async (req, res, next) => {
     const user_id = data.user_id;
     const team_id = data.team_id;
     const user_update_id = data.user_update_id;
+    if(!team_id || !user_id) return res.json(handle_error("Insuffient parameters"))
     const update_fields = {
         ...(data.email) && { email : data.email },
         ...(data.name) && { name : data.name },
     }
     try {
-        await TeamModel.findById({ 
+        TeamModel.findById({ 
             _id : team_id
         }, (err, team) => {
             // Check if valid IDs are passed.
-            const invalid = no_docs_or_error(team, err);
-            if(invalid.is_true) return res.json(invalid.message);
+            if(err) return res.json(handle_generated_error(errj))
 
             const isRoot = is_root(team.root, user_id);
 
@@ -46,15 +46,12 @@ router.post('/update', async (req, res, next) => {
                 _id: user_update_id,
             }, update_fields, (err, updated_user) => {
                 // Validation checks.
-                const update_failed = no_docs_or_error(updated_user, err);
-                if(update_failed.is_true){
-                    return res.json(update_failed.message);
-                }
-                res.json(handle_success(updated_user));
+                if(err) return res.json(handle_generated_error(err))
+                return res.json(handle_success("User updated successfully!"));
             });
         });
     } catch (err) {
-        res.json(handle_error(err.message));
+        return res.json(handle_error(err.message));
     }
 })
 

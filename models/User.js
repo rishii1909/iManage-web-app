@@ -50,6 +50,15 @@ UserSchema.pre(
     }
 )
 
+UserSchema.pre(
+    'findOneAndUpdate',
+    async function(next){
+        const hash = await bcrypt.hash(this._update.password, 10);
+        this._update.password = hash;
+    next();
+    }
+)
+
 UserSchema.methods.check_password = async function(password){
   const user = this;
   const compare = await bcrypt.compare(password, user.password);
