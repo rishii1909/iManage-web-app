@@ -530,28 +530,62 @@ router.post('/delete/team', (req, res, next) => {
             console.log("Root  : ", team.root, "User ID : ", user_id)
             return res.json(handle_error("You're not authenticated to perform this operation."));
         }
-        //Delete the device
-        DeviceModel.deleteOne({
-            _id: data.device_id
-        }, (err) => {
-            if(err){
-                return res.json(handle_generated_error(err));
-            }else{
-                TeamModel.updateOne({
-                    _id: team_id
-                }, {
-                    $pull : {devices : data.device_id},
-                    $inc : { device_occupancy : -1 }
-                },
-                (err) => {
+
+        return DeviceModel.findById({ 
+            _id : data.device_id
+        }, (err, device) => {
+            if(err) return res.json(handle_generated_error(err))
+            if(!device) return res.json(not_found("Device"))
+
+            const monitors = device.monitors;
+            const monitors_arr = [];
+            // monitors.map((el) => console.log(el))
+            // monitors.keys().forEach(el => console.log(el))
+            for(const el of monitors){
+                const agent_key = el[0];
+                const agent = el[1];
+                for (const monitor_type in agent) {
+                        if (Object.hasOwnProperty.call(agent, monitor_type)) {
+                            const monitor_ids = agent[monitor_type];
+                            for (const monitor_id in monitor_ids) {
+                                monitors_arr.push(monitor_id);
+                            }
+                        }
+                    }
+            }
+
+            MonitorModel.find({ 
+                _id : {
+                    $in : monitors_arr
+                }
+            }, (err, docs) => {
+                if(err) return res.json(handle_generated_error(err));
+                const monitors_count = docs.length;
+                if(docs.length > 0) return res.json(handle_error(`There ${monitors_count > 1 ? "are" : "is"} ${monitors_count} monitor${monitors_count > 1 ? "s" : ""} present in this device, please delete them before proceeding to delete this device.`))
+                //Delete the device
+                DeviceModel.deleteOne({
+                    _id: data.device_id
+                }, (err) => {
                     if(err){
-                        console.log(`Error: ` + err)
+                        return res.json(handle_generated_error(err));
+                    }else{
+                        TeamModel.updateOne({
+                            _id: team_id
+                        }, {
+                            $pull : {devices : data.device_id},
+                            $inc : { device_occupancy : -1 }
+                        },
+                        (err) => {
+                            if(err){
+                                console.log(`Error: ` + err)
+                            }
+                        });
+                        return res.json(handle_success("Device deleted successfully."));
                     }
                 });
-                return res.json(handle_success("Device deleted successfully."));
-            }
+            });
         });
-        
+
     });
 })
 
@@ -611,8 +645,9 @@ router.post('/delete/user', (req, res, next) => {
                 }
             }, (err, docs) => {
                 if(err) return res.json(handle_generated_error(err));
-
-                if(docs.length > 0) return res.json(handle_error(`There are ${docs.length} monitors present in this device, please delete them before proceeding to delete this device.`))
+                console.log(docs);
+                const monitors_count = docs.length;
+                if(monitors_count > 0) return res.json(handle_error(`There ${monitors_count > 1 ? "are" : "is"} ${monitors_count} monitor${monitors_count > 1 ? "s" : ""} present in this device, please delete them before proceeding to delete this device.`))
                 //Delete the device
                 DeviceModel.deleteOne({
                     _id: data.device_id
@@ -633,21 +668,6 @@ router.post('/delete/user', (req, res, next) => {
                     }
                 });
             });
-            // for (const agent_key in monitors) {
-            //     if (Object.hasOwnProperty.call(monitors, agent_key)) {
-            //         const agent = monitors[agent_key];
-            //         console.log("AGENT", agent)
-            //         // for (const monitor_type in agent) {
-            //         //     if (Object.hasOwnProperty.call(agent, monitor_type)) {
-            //         //         const monitor_ids = agent[monitor_type];
-            //         //         console.log(monitor_ids)
-            //         //         // for (const monitor_id in monitor_ids) {
-            //         //         //     console.log(monitor_id)
-            //         //         // }
-            //         //     }
-            //         // }
-            //     }
-            // }
         });
         
     });
