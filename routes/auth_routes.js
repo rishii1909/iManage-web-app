@@ -5,6 +5,7 @@ const { handle_success, handle_error, handle_generated_error, not_found } = requ
 const nodemailer = require("nodemailer");
 const { nanoid } = require("nanoid");
 const UserModel = require('../models/User');
+const ForgotOTPModel = require('../models/ForgotOtp');
 
 const router = express.Router();
 
@@ -52,6 +53,89 @@ router.post('/login', async (req, res, next) => {
         }
     })(req, res, next);
 })
+
+router.post('/forgot_password/set_passwd', async (req, res, next) => {
+    const data = req.body;
+    const otp = data.otp;
+    const password = data.password;
+    
+    ForgotOTPModel.findOne({
+        otp: otp,
+    }).then((doc) => {
+        if(!doc) return res.json(handle_error("You have entered an incorrect OTP, or it has timed out."))
+        UserModel.findById({ 
+            _id : doc.user_id
+        }, (err, doc) => {
+            if(err) return res.json(handle_generated_error(err))
+            if(!doc) return res.json(handle_error("User not found."))
+
+            UserModel.findOneAndUpdate({
+                _id : doc._id
+            }, {
+                password: password
+            },
+            {new : true},
+            async (err, user) => {
+                // console.log(err, user)
+                if (err) {
+                    return res.json(handle_generated_error(err));
+                }
+                if(!user) return res.json(not_found("Account"));
+        
+                return res.json(handle_success("Your password has been reset successfully!"))
+        
+            });
+        });
+    });
+
+})
+
+router.post('/forgot_password/send_otp', async (req, res, next) => {
+    const data = req.body;
+    const email = data.email;
+    const otp = nanoid(10);
+
+    UserModel.findOne({
+        email: email,
+    }).then((user) => {
+        if(!user) return res.json(not_found("Account"));
+        
+        ForgotOTPModel.findOneAndUpdate({
+            user_id: user._id,
+        }, 
+        {
+            otp: otp,
+        }, 
+        {
+            new : true,
+            upsert : true,
+            setDefaultsOnInsert : true
+        },
+        async (err, otp) => {
+            if(err) return res.json(handle_generated_error(err))
+            if(!otp) return res.json(handle_error("Could not create OTP."))
+    
+            try {
+                const mailed = await transporter.sendMail({
+                    from: '"iManage Accounts System" <notifications@imanage.host>', // sender address
+                    to: email, // list of receivers
+                    subject: "Forgot Password", // Subject line
+                    text: "Your reset password OTP is : " + otp.otp, // plain text body
+                });
+                
+                if(mailed) return res.json(handle_success("OTP sent successfully."));
+                return res.json(handle_error("Unable to send OTP to your email."))
+    
+            } catch (err) {
+                console.log(err)
+                return res.json(handle_error("There was an error while sending the OTP."));
+            }
+    
+        });
+
+    });
+})
+
 
 router.post('/forgot_password', async (req, res, next) => {
     const data = req.body;
