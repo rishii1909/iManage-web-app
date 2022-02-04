@@ -31,7 +31,7 @@ const { newAgent, removeAgent } = require('./helpers/websocket');
 
 const { Server } = require('ws');
 
-
+global.cloud_agent_id = "61a35d2722fd3300162c2bb1"
 
 mongoose.connect(
     "mongodb+srv://admin:admin@cluster0.t2yk1.mongodb.net/iManage_central_db?retryWrites=true&w=majority",
