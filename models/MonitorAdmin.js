@@ -13,8 +13,14 @@ const MonitorAdminSchema = new Schema({
         type : String,
         required : true,
     },
-    offline_time_start : String,
-    offline_time_end : String,
+    offline_time_start : {
+        type : String,
+        default : "0 22 * * *"
+    },
+    offline_time_end : {
+        type : String,
+        default : "0 6 * * *"
+    },
     heartbeat : {
         type : Boolean,
         default : false
@@ -39,7 +45,10 @@ const MonitorAdminSchema = new Schema({
         type : Boolean,
         default : true
     },
-    notification_time : String,
+    notification_time : {
+        type : String,
+        default : "0 9 * * *"
+    },
     team_id : {
         type : Schema.Types.ObjectId,
         ref : 'Team',

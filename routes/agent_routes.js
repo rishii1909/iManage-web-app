@@ -36,6 +36,24 @@ router.post('/create/team', async (req, res, next) => {
             const caps = get_capacity(team.level)
             if(team.agent_occupancy >= caps.agents) return res.json(maximum_limit_error(verbose))
 
+            let windows_count = 0;
+            let linux_count = 0;
+            if(team.user_agents.get(user_id)){
+                const user_agents = await AgentModel.find({ 
+                    _id: {$in : team.user_agents.get(user_id)}
+                });
+
+                user_agents.forEach(a => {
+                    console.log(a._id != cloud_agent_id, a._id, cloud_agent_id)
+                    if(a._id != cloud_agent_id){
+                        if(a.type == 1) windows_count++;
+                        if(a.type == 0) linux_count++;
+                    }
+                })
+            }
+
+            if(windows_count >= 1) return res.json(handle_error("There is already a Windows agent present in your account."))
+            if(linux_count >= 1) return res.json(handle_error("There is already a Linux agent present in your account."))
 
             if(
                 !(
@@ -110,7 +128,25 @@ router.post('/create/user', async (req, res, next) => {
             
             const caps = get_capacity(team.level)
             if(team.agent_occupancy >= caps.agents) return res.json(maximum_limit_error(verbose))
+            
+            let windows_count = 0;
+            let linux_count = 0;
+            if(team.user_agents.get(user_id)){
+                const user_agents = await AgentModel.find({ 
+                    _id: {$in : team.user_agents.get(user_id)}
+                });
 
+                user_agents.forEach(a => {
+                    if(a._id != cloud_agent_id){
+                        if(a.type == 1) windows_count++;
+                        if(a.type == 0) linux_count++;
+                    }
+                })
+            }
+            if(windows_count >= 1) return res.json(handle_error("There is already a Windows agent present in your account."))
+            if(linux_count >= 1) return res.json(handle_error("There is already a Linux agent present in your account."))
+
+             
             const final_agent_object = {
                 ...(data.name) && {name : data.name},
                 ...(data.team_id) && {team_id : data.team_id},

@@ -270,7 +270,27 @@ router.post('/enumerate/one', async (req, res, next) => {
             user_id: enum_id,
         }).then((doc) => {
             if (!doc) {
-                return res.json(not_found("Monitor admin profile"));
+
+                UserModel.findOne({
+                    _id: enum_id,
+                }).then((user) => {
+                    if (!user) {
+                        return res.json(not_found("user"))
+                    }
+
+                    MonitorAdminModel.create(
+                        {
+                            user_id : user._id,
+                            email : user.email,
+                            team_id : user.team_id,
+                            name : user.name
+                        }
+                        
+                    ).then((admin) => {
+                        return res.json(handle_sucess(admin));
+                    });
+
+                });
             }
             return res.json(handle_success(doc))
         });

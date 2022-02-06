@@ -22,6 +22,7 @@
     "jsonwebtoken": "^8.5.1",
     "less": "^2.7.3",
     "mongoose": "^5.9.15",
+    "nanoid": "^3.2.0",
     "node-ssh": "^12.0.0",
     "nodemailer": "^6.7.2",
     "passport": "^0.4.1",

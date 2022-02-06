@@ -441,6 +441,8 @@ router.post('/enumerate/device', (req, res, next) => {
             ).select('-creds -username -team');
         }
         if(!device) return res.json(handle_error("Device not found"))
+        device.creds.host = device.host;
+        device.creds.username = device.username
         if(data.show_monitors){
             let obtained_monitors = {};
             let obtained_monitors_array = [];

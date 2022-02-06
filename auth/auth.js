@@ -28,6 +28,12 @@ passport.use(
 
                 if(!req.body.team_secret){
                     var user = await UserModel.create(req.body);
+                    var admin_profile = await MonitorAdminModel.create({
+                        user_id : user._id,
+                        team_id : team._id,
+                        email : req.body.email,
+                        name : user.name
+                    });
                     let teamData = {};
                     teamData.name = `${user.name.trim().split(" ")[0]}'s team`;
                     teamData.root = user._id;
