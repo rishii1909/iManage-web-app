@@ -264,15 +264,16 @@ router.post('/enumerate', async (req, res, next) => {
 router.post('/enumerate/one', async (req, res, next) => {
     const data = req.body;
     const team_id = data.team_id;
-    const enum_id = data.enum_id;
+    const user_id = data.user_id;
+    if(!user_id || !team_id) return res.json(handle_error("Insufficient parameters."))
     try {
         MonitorAdminModel.findOne({
-            user_id: enum_id,
+            user_id: user_id,
         }).then((doc) => {
             if (!doc) {
 
                 UserModel.findOne({
-                    _id: enum_id,
+                    _id: user_id,
                 }).then((user) => {
                     if (!user) {
                         return res.json(not_found("user"))
@@ -287,12 +288,15 @@ router.post('/enumerate/one', async (req, res, next) => {
                         }
                         
                     ).then((admin) => {
-                        return res.json(handle_sucess(admin));
+                        console.log(admin);
+                        return res.json(handle_success(admin));
                     });
 
                 });
+            }else{
+                return res.json(handle_success(doc))
             }
-            return res.json(handle_success(doc))
+            
         });
     } catch (err) {
         // console.log(handle_error({err}));
