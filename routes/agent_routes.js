@@ -143,8 +143,8 @@ router.post('/create/user', async (req, res, next) => {
                     }
                 })
             }
-            if(windows_count >= 1) return res.json(handle_error("There is already a Windows agent present in your account."))
-            if(linux_count >= 1) return res.json(handle_error("There is already a Linux agent present in your account."))
+            if(windows_count > 1) return res.json(handle_error("There is already a Windows agent present in your account."))
+            if(linux_count > 1) return res.json(handle_error("There is already a Linux agent present in your account."))
 
              
             const final_agent_object = {
