@@ -149,6 +149,25 @@ router.post('/update', async (req, res, next) => {
     }
 })
 
+router.post('/update/one', async (req, res, next) => {
+    const data = req.body;
+    const user_id = data.user_id;
+    const team_id = data.team_id;
+    delete data.user_id;
+    delete data.team_id;
+    MonitorAdminModel.findOneAndUpdate({
+        user_id,
+    }, 
+    data,
+    { new : true }, 
+    (err, doc) => {
+        if (err) {
+            console.log(`Monitor admin profile update error: ` + err)
+            return res.json(handle_error(err));
+        }
+        return res.json(handle_success(doc));
+    });
+})
 
 
 router.post('/revoke/one', async (req, res, next) => {

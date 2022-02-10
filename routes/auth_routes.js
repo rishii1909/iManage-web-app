@@ -6,6 +6,7 @@ const nodemailer = require("nodemailer");
 const { nanoid } = require("nanoid");
 const UserModel = require('../models/User');
 const ForgotOTPModel = require('../models/ForgotOtp');
+const VerifyEmailModel = require('../models/VerifyEmailOtp')
 
 const router = express.Router();
 
@@ -39,12 +40,12 @@ router.post('/login', async (req, res, next) => {
                 const token = jwt.sign({user : user._id}, 'iManage-secret-key', {expiresIn : '1d'});
                 return res.json(handle_success(
                     {
-                            user_id : user._id,
-                            team_id : user.team_id,
-                            name : user.name,
-                            pro : user.pro,
-                            auth_token : token,
-                            message : info
+                        user_id : user._id,
+                        team_id : user.team_id,
+                        name : user.name,
+                        pro : user.pro,
+                        auth_token : token,
+                        message : info
                     }
                 ));
             })
@@ -52,6 +53,80 @@ router.post('/login', async (req, res, next) => {
             return next(err);
         }
     })(req, res, next);
+})
+
+router.post('/register/send_verify_otp', async (req, res, next) => {
+    const data = req.body;
+    const email = data.email;
+    const otp = nanoid(10);
+
+    VerifyEmailModel.findOneAndUpdate({
+        email : email
+    }, 
+    {
+        otp: otp,
+    }, 
+    {
+        new : true,
+        upsert : true,
+        setDefaultsOnInsert : true
+    },
+    async (err, otp) => {
+        if(err) return res.json(handle_generated_error(err))
+        if(!otp) return res.json(handle_error("Could not create verification code."))
+
+        try {
+            const mailed = await transporter.sendMail({
+                from: '"iManage Accounts System" <notifications@imanage.host>', // sender address
+                to: email, // list of receivers
+                subject: "Verify Email", // Subject line
+                text: "Your verification code is : " + otp.otp, // plain text body
+            });
+            
+            if(mailed) return res.json(handle_success("Verification code sent successfully."));
+            return res.json(handle_error("Unable to send verification code to your email."))
+
+        } catch (err) {
+            console.log(err)
+            return res.json(handle_error("There was an error while sending the verification code."));
+        }
+
+    });
+
+})
+
+router.post('/register/check_verify_otp', (req, res, next) => {
+    const data = req.body;
+
+    if(!data.email || !data.otp) return res.json(handle_error("Please enter required data."))
+
+    VerifyEmailModel.findOne({
+        email: data.email,
+    }).then((doc) => {
+        if (!doc) {
+            return res.json(handle_error("Verification expired, please try again."))
+        }
+
+        if(doc.otp !== data.otp) return res.json(handle_error("Incorrect verification code entered."))
+
+        return res.json(handle_success("Email verified successfully!"));
+    });
+})
+
+router.post('/forgot_password/verify_otp', async (req, res, next) => {
+    const data = req.body;
+    const otp = data.otp;
+    const password = data.password;
+    
+    ForgotOTPModel.findOne({
+        otp: otp,
+    }).then((doc) => {
+        if(!doc) return res.json(handle_error("You have entered an incorrect OTP, or it has timed out."))
+        if(otp.user_id != data.user_id) return res.json(handle_error("Incorrect OTP entered."))
+        
+        return res.json(handle_success("OTP verified successfully!"));
+    });
+
 })
 
 router.post('/forgot_password/set_passwd', async (req, res, next) => {
@@ -63,6 +138,7 @@ router.post('/forgot_password/set_passwd', async (req, res, next) => {
         otp: otp,
     }).then((doc) => {
         if(!doc) return res.json(handle_error("You have entered an incorrect OTP, or it has timed out."))
+        if(otp.user_id != data.user_id) return res.json(handle_error("Incorrect OTP entered."))
         UserModel.findById({ 
             _id : doc.user_id
         }, (err, doc) => {

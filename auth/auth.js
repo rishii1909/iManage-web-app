@@ -5,6 +5,8 @@ const TeamModel = require('../models/Team');
 const AgentModel = require('../models/Agent')
 const NotificationTemplateModel = require('../models/NotificationTemplate');
 const TeamSecretModel = require('../models/TeamSecret');
+const MonitorAdminModel = require("../models/MonitorAdmin");
+const VerifyEmailModel = require('../models/VerifyEmailOtp');
 const JWTstrategy = require('passport-jwt').Strategy;
 const ExtractJWT = require('passport-jwt').ExtractJwt;
 
@@ -20,20 +22,18 @@ passport.use(
     },
     async (req, email, password, done) => {
         try {
-
+            const otp = await VerifyEmailModel.findOne({
+                email : req.body.email
+            })
+            if(otp.otp != req.body.otp) return done("You have entered an incorrect/expired verification code. ")
             UserModel.findOne({
                 email: req.body.email,
             }).then( async (user) => {
-                if(user) return handle_error("An account for this email already exists.")
+                if(user) return done("An account for this email already exists.")
 
                 if(!req.body.team_secret){
                     var user = await UserModel.create(req.body);
-                    var admin_profile = await MonitorAdminModel.create({
-                        user_id : user._id,
-                        team_id : team._id,
-                        email : req.body.email,
-                        name : user.name
-                    });
+                    
                     let teamData = {};
                     teamData.name = `${user.name.trim().split(" ")[0]}'s team`;
                     teamData.root = user._id;
@@ -41,6 +41,12 @@ passport.use(
                     teamData.capacity = 1;
                     teamData.users = [user._id]
                     const team = await TeamModel.create(teamData);
+                    var admin_profile = await MonitorAdminModel.create({
+                        user_id : user._id,
+                        team_id : team._id,
+                        email : req.body.email,
+                        name : user.name
+                    });
                     await UserModel.updateOne({
                         _id: user._id
                     }, {
