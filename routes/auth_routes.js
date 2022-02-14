@@ -17,7 +17,7 @@ let transporter = nodemailer.createTransport({
     port: 465,
     secure: true, // true for 465, false for other ports
     auth: {
-      user: "notifications@imanage.host", 
+      user: "info@acmesoftware.net", 
       pass: "Reset123!",
     },
 });
@@ -77,7 +77,7 @@ router.post('/register/send_verify_otp', async (req, res, next) => {
 
         try {
             const mailed = await transporter.sendMail({
-                from: '"iManage Accounts System" <notifications@imanage.host>', // sender address
+                from: '"iManage Accounts System" <info@acmesoftware.net>', // sender address
                 to: email, // list of receivers
                 subject: "Verify Email", // Subject line
                 text: "Your verification code is : " + otp.otp, // plain text body
@@ -193,7 +193,7 @@ router.post('/forgot_password/send_otp', async (req, res, next) => {
     
             try {
                 const mailed = await transporter.sendMail({
-                    from: '"iManage Accounts System" <notifications@imanage.host>', // sender address
+                    from: '"iManage Accounts System" <info@acmesoftware.net>', // sender address
                     to: email, // list of receivers
                     subject: "Forgot Password", // Subject line
                     text: "Your reset password OTP is : " + otp.otp, // plain text body
@@ -232,7 +232,7 @@ router.post('/forgot_password', async (req, res, next) => {
 
         try {
             const mailed = await transporter.sendMail({
-                from: '"iManage Accounts System" <notifications@imanage.host>', // sender address
+                from: '"iManage Accounts System" <info@acmesoftware.net>', // sender address
                 to: email, // list of receivers
                 subject: "Password reset", // Subject line
                 text: "Your reset password is : " + new_password, // plain text body
@@ -254,7 +254,7 @@ router.post('/forgot_password', async (req, res, next) => {
 
     //     // send mail with defined transport object
     //     transporter.sendMail({
-    //         from: '"iManage Notifications System" <notifications@imanage.host>', // sender address
+    //         from: '"iManage Notifications System" <info@acmesoftware.net>', // sender address
     //         to: emails, // list of receivers
     //         subject: notification.header, // Subject line
     //         text: notification.body, // plain text body

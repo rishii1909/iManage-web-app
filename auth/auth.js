@@ -25,6 +25,7 @@ passport.use(
             const otp = await VerifyEmailModel.findOne({
                 email : req.body.email
             })
+            if(!otp) return done("Verification code doesn't match.");
             if(otp.otp != req.body.otp) return done("You have entered an incorrect/expired verification code. ")
             UserModel.findOne({
                 email: req.body.email,
